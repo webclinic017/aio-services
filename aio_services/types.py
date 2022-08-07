@@ -1,13 +1,16 @@
-from typing import Any, Awaitable, Callable, Optional, Protocol, TypeVar, Union
+from typing import Any, Awaitable, Callable, Optional, Protocol, TypeVar, TYPE_CHECKING
 
-from aio_services.broker import Broker
-from aio_services.models import BaseConsumerOptions, CloudCommand, CloudEvent
 
-BrokerT = TypeVar("BrokerT", bound=Broker)
+from aio_services.models import BaseConsumerOptions, CloudEvent
+
+if TYPE_CHECKING:
+    from aio_services.broker import Broker
+
+BrokerT = TypeVar("BrokerT", bound="Broker")
 
 COpts = TypeVar("COpts", bound=BaseConsumerOptions)
 MessageT = TypeVar("MessageT")
-EventT = TypeVar("EventT", bound=Union[CloudEvent, CloudCommand])
+EventT = TypeVar("EventT", bound=CloudEvent)
 
 HandlerT = Callable[[EventT], Awaitable[Optional[Any]]]
 

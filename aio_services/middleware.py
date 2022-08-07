@@ -3,10 +3,11 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Generic
 
 from aio_services.utils.mixins import ConsumerOptMixin, LoggerMixin
+from aio_services.types import COpts, BrokerT
 
 if TYPE_CHECKING:
     from aio_services.consumer import Consumer
-    from aio_services.types import BrokerT, COpts, EventT, MessageT
+    from aio_services.types import EventT, MessageT
 
 
 class Middleware(LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, BrokerT]):

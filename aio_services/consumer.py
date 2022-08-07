@@ -5,9 +5,10 @@ from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
 
 from aio_services.logger import get_logger
 from aio_services.utils.asyncio import run_async
+from aio_services.types import EventT
 
 if TYPE_CHECKING:
-    from aio_services.types import EventT, HandlerT
+    from aio_services.types import HandlerT
 
 
 class Consumer(Generic[EventT]):

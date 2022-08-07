@@ -56,7 +56,7 @@ class CloudEvent(BaseCloudEvent):
     topic: str = Field(..., alias="subject")
 
 
-class CloudCommand(BaseCloudEvent):
+class CloudCommand(CloudEvent):
     t: ClassVar[TopicGetter] = TopicGetter()
 
     def __init_subclass__(cls, **kwargs):

@@ -23,10 +23,16 @@ aiozmq = {version = "^0.9.0", optional = true}
 prometheus-client = {version = "^0.14.1", optional = true}
 
 [tool.poetry.extras]
-all = ["orjson", "uvloop", "nats-py", "aioredis", "aiokafka", "aio-pika", "aiorun", "click", "gcloud-aio-pubsub", "aiozmq", "prometheus-client"]
+all = ["orjson", "uvloop", "aiorun", "click", "prometheus-client", "nats-py", "aiokafka", "aio-pika", "gcloud-aio-pubsub", "aiozmq", "aioredis"]
 
+# common
 cli = ["aiorun", "click"]
 fast = ["orjson", "uvloop"]
+
+# observability
+prometheus = ["prometheus-client"]
+
+# brokers
 nats = ["nats-py"]
 redis = ["aioredis"]
 kafka = ["aiokafka"]
@@ -42,6 +48,14 @@ black = "^22.3.0"
 flake8 = "^4.0.1"
 isort = "^5.10.1"
 tox = "^3.25.0"
+pytest-asyncio = "^0.19.0"
+
+[tool.pytest.ini_options]
+addopts = "--cov=./aio_services"
+testpaths = [
+   "./tests"
+]
+asyncio_mode = "auto"
 
 [tool.mypy]
 python_version = 3.9

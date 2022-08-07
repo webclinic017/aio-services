@@ -4,13 +4,14 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Awaitable, Callable, Generic
 
 from aio_services.exceptions import Skip
+from aio_services.middleware import Middleware
 from aio_services.types import COpts, MessageT
 from aio_services.utils.mixins import ConsumerOptMixin, LoggerMixin
 
 if TYPE_CHECKING:
     from aio_services.consumer import Consumer
-    from aio_services.middleware import Middleware
-    from aio_services.types import Encoder, EventT
+
+    from aio_services.types import Encoder, EventT, BrokerT
 
 
 class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]):
@@ -18,7 +19,7 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
         self,
         *,
         encoder: Encoder | None = None,
-        middlewares: list[Middleware] | None = None,
+        middlewares: list[Middleware[COpts, BrokerT]] | None = None,
         **options,
     ) -> None:
         if encoder is None:
@@ -28,12 +29,6 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
 
         self.encoder = encoder
         middlewares = middlewares or []
-        # for m in middlewares:
-        #     if not issubclass(type(self), m.broker_class):
-        #         raise TypeError(
-        #             f"Invalid broker/middleware combination. "
-        #             f"Expected {m.broker_class}. Got {type(self)}"
-        #         )
         self.middlewares = middlewares
         self.options = options
 
@@ -98,11 +93,6 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
     def add_middleware(self, middleware: Middleware) -> None:
         if not isinstance(middleware, Middleware):
             raise TypeError(f"Middleware expected, got {type(middleware)}")
-        # if not issubclass(type(self), middleware.supported_brokers):
-        #     raise TypeError(
-        #         f"Invalid broker/middleware combination. "
-        #         f"Expected one of: {middleware.supported_brokers}. Got {type(self)}"
-        #     )
         self.middlewares.append(middleware)
 
     async def _dispatch(self, full_event: str, *args, **kwargs) -> None:

@@ -3,10 +3,9 @@ from __future__ import annotations
 import functools
 import weakref
 from random import uniform
-from typing import TYPE_CHECKING, cast
+from typing import cast
 
-if TYPE_CHECKING:
-    from aio_services.types import F
+from aio_services.types import F
 
 
 def method_cache(func: F) -> F:
