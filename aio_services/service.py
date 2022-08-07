@@ -3,12 +3,11 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Callable
 
-
 from aio_services.consumer import Consumer
 from aio_services.logger import get_logger
 
 if TYPE_CHECKING:
-    from aio_services.types import EventT, HandlerT, BrokerT
+    from aio_services.types import BrokerT, EventT, HandlerT
 
 
 class Service:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, get_type_hints, Generic, cast
+from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
 
 from aio_services.logger import get_logger
 from aio_services.utils.asyncio import run_async

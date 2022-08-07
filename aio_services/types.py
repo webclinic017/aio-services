@@ -1,7 +1,7 @@
 from typing import Any, Awaitable, Callable, Optional, Protocol, TypeVar, Union
 
 from aio_services.broker import Broker
-from aio_services.models import CloudCommand, CloudEvent, BaseConsumerOptions
+from aio_services.models import BaseConsumerOptions, CloudCommand, CloudEvent
 
 BrokerT = TypeVar("BrokerT", bound=Broker)
 

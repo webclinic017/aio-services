@@ -5,11 +5,12 @@ from typing import TYPE_CHECKING, Generic
 
 from aio_services.logger import get_logger
 from aio_services.models import BaseConsumerOptions
-from aio_services.utils.functools import method_cache
 from aio_services.types import COpts
+from aio_services.utils.functools import method_cache
 
 if TYPE_CHECKING:
     import logging
+
     from aio_services.consumer import Consumer
 
 

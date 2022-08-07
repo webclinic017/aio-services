@@ -14,7 +14,7 @@ from aio_services.models import BaseConsumerOptions
 from aio_services.utils.functools import compute_backoff
 
 if TYPE_CHECKING:
-    from aio_services.types import Encoder, EventT, MessageT, BrokerT, COpts
+    from aio_services.types import BrokerT, COpts, Encoder, EventT, MessageT
 
 
 class Retry(Exception):

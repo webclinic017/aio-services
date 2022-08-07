@@ -4,9 +4,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Awaitable, Callable, Generic
 
 from aio_services.exceptions import Skip
-
+from aio_services.types import COpts, MessageT
 from aio_services.utils.mixins import ConsumerOptMixin, LoggerMixin
-from aio_services.types import MessageT, COpts
 
 if TYPE_CHECKING:
     from aio_services.consumer import Consumer

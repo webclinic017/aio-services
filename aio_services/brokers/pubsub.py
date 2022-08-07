@@ -16,7 +16,7 @@ from aio_services.models import BaseConsumerOptions
 
 if TYPE_CHECKING:
     from aio_services.consumer import Consumer
-    from aio_services.types import EventT, Encoder
+    from aio_services.types import Encoder, EventT
 
 
 class PubSubConsumerOptions(BaseConsumerOptions):
