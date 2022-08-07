@@ -1,9 +1,17 @@
-from aio_services.models import CloudEvent
-from typing import Any, Protocol, TypeVar
+from typing import Any, Awaitable, Callable, Optional, Protocol, TypeVar, Union
 
-MsgT = TypeVar("MsgT")
+from aio_services.broker import Broker
+from aio_services.models import CloudCommand, CloudEvent, BaseConsumerOptions
 
-DataT = TypeVar("DataT", bound=CloudEvent)
+BrokerT = TypeVar("BrokerT", bound=Broker)
+
+COpts = TypeVar("COpts", bound=BaseConsumerOptions)
+MessageT = TypeVar("MessageT")
+EventT = TypeVar("EventT", bound=Union[CloudEvent, CloudCommand])
+
+HandlerT = Callable[[EventT], Awaitable[Optional[Any]]]
+
+F = TypeVar("F", bound=Callable[..., Any])
 
 
 class Encoder(Protocol):
