@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from functools import cached_property
 from typing import TYPE_CHECKING, Generic
 
 from aio_services.logger import get_logger
@@ -23,6 +22,7 @@ class ConsumerOptMixin(Generic[COpts]):
 
 
 class LoggerMixin:
-    @cached_property
-    def logger(self) -> logging.Logger:
-        return get_logger(__name__, type(self))
+    logger: logging.Logger
+
+    def __init_subclass__(cls, **kwargs):
+        cls.logger = get_logger(__name__, cls)
