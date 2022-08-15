@@ -9,9 +9,7 @@ from aio_services.types import COpts, MessageT
 from aio_services.utils.mixins import ConsumerOptMixin, LoggerMixin
 
 if TYPE_CHECKING:
-    from aio_services.consumer import Consumer
-
-    from aio_services.types import Encoder, EventT, BrokerT
+    from aio_services.types import BrokerT, ConsumerT, Encoder, EventT
 
 
 class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]):
@@ -43,7 +41,7 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
     def get_message_data(message: MessageT) -> bytes:
         raise NotImplementedError
 
-    def get_handler(self, consumer: Consumer) -> Callable[[MessageT], Awaitable[None]]:
+    def get_handler(self, consumer: ConsumerT) -> Callable[[MessageT], Awaitable[None]]:
         async def handler(message: MessageT) -> None:
             exc = None
             result = None
@@ -65,7 +63,7 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
 
         return handler
 
-    async def ack(self, consumer: Consumer, message: MessageT) -> None:
+    async def ack(self, consumer: ConsumerT, message: MessageT) -> None:
         await self.dispatch_before("ack", consumer, message)
         await self._ack(message)
         await self.dispatch_after("ack", consumer, message)
@@ -85,7 +83,7 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
         await self._publish(message, **kwargs)
         await self.dispatch_after("publish", self, message)
 
-    async def start_consumer(self, consumer: Consumer):
+    async def start_consumer(self, consumer: ConsumerT):
         await self.dispatch_before("consumer_start", consumer)
         await self._start_consumer(consumer)
         await self.dispatch_after("consumer_start", consumer)
@@ -123,7 +121,7 @@ class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]
         raise NotImplementedError
 
     @abstractmethod
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, consumer: ConsumerT) -> None:
         raise NotImplementedError
 
     async def _ack(self, message: MessageT) -> None:

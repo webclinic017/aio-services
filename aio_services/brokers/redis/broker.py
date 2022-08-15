@@ -7,9 +7,8 @@ import aioredis
 from aio_services.broker import Broker
 
 if TYPE_CHECKING:
-    from aio_services.consumer import Consumer
     from aio_services.middleware import Middleware
-    from aio_services.types import Encoder, EventT
+    from aio_services.types import ConsumerT, Encoder, EventT
 
 
 class RedisBroker(Broker[Any, dict[str, str]]):
@@ -25,7 +24,7 @@ class RedisBroker(Broker[Any, dict[str, str]]):
         self.url = url
         self._redis = None
 
-    async def _start_consumer(self, consumer: Consumer):
+    async def _start_consumer(self, consumer: ConsumerT):
         handler = self.get_handler(consumer)
         psub = self.redis.pubsub()
 

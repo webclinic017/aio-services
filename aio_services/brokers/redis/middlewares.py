@@ -9,8 +9,7 @@ from aio_services.models import BaseConsumerOptions
 if TYPE_CHECKING:
     from aio_services.broker import Broker
     from aio_services.brokers.redis import RedisBroker
-    from aio_services.consumer import Consumer
-    from aio_services.types import EventT, MessageT
+    from aio_services.types import ConsumerT, EventT, MessageT
 
 
 class RedisStoreResultConsumerOptions(BaseConsumerOptions):
@@ -40,7 +39,7 @@ class RedisResultMiddleware(Middleware):
     async def after_process_message(
         self,
         broker: RedisBroker,
-        consumer: Consumer,
+        consumer: ConsumerT,
         message: EventT,
         raw_message: MessageT,
         result: Any | None = None,

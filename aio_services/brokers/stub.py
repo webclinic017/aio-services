@@ -9,8 +9,7 @@ from aio_services.middleware import Middleware
 from aio_services.models import BaseConsumerOptions
 
 if TYPE_CHECKING:
-    from aio_services.consumer import Consumer
-    from aio_services.types import EventT, Encoder
+    from aio_services.types import ConsumerT, Encoder, EventT
 
 
 class StubBroker(Broker[BaseConsumerOptions, bytes]):
@@ -34,7 +33,7 @@ class StubBroker(Broker[BaseConsumerOptions, bytes]):
     async def _disconnect(self) -> None:
         self._stopped = True
 
-    async def _start_consumer(self, consumer: Consumer):
+    async def _start_consumer(self, consumer: ConsumerT):
         queue = self.topics[consumer.topic]
         handler = self.get_handler(consumer)
         while not self._stopped:

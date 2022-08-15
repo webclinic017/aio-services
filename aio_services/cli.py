@@ -40,7 +40,7 @@ def run(app: str) -> None:
     service = _import_service(app)
     if service is None:
         return
-    aiorun.run(service.start(), shutdown_callback=service.stop())
+    aiorun.run(service.start(), shutdown_callback=service.stop)
 
 
 @cli.command()

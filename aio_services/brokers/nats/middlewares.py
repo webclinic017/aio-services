@@ -8,18 +8,13 @@ from nats.js.api import StreamConfig
 from nats.js.kv import KeyValue
 
 from aio_services.brokers.nats.broker import JetStreamBroker, NatsBroker
-from aio_services.consumer import Consumer
+from aio_services.exceptions import Retry
 from aio_services.middleware import Middleware
 from aio_services.models import BaseConsumerOptions
 from aio_services.utils.functools import compute_backoff
 
 if TYPE_CHECKING:
-    from aio_services.types import BrokerT, COpts, Encoder, EventT, MessageT
-
-
-class Retry(Exception):
-    def __init__(self, delay: int | None = None):
-        self.delay = delay
+    from aio_services.types import BrokerT, ConsumerT, COpts, Encoder, EventT, MessageT
 
 
 class JetStreamResultConsumerOptions(BaseConsumerOptions):
@@ -41,7 +36,7 @@ class NatsRetryMessageMiddleware(Middleware[RetryConsumerOptions, NatsBroker]):
     async def after_process_message(
         self,
         broker: BrokerT,
-        consumer: Consumer,
+        consumer: ConsumerT,
         message: EventT,
         raw_message: NatsMsg,
         result: Any | None = None,
@@ -114,7 +109,7 @@ class NatsJetStreamResultMiddleware(
     async def after_process_message(
         self,
         broker: JetStreamBroker,
-        consumer: Consumer,
+        consumer: ConsumerT,
         message: EventT,
         raw_message: MessageT,
         result: Any | None = None,
@@ -135,9 +130,8 @@ class JetStreamManagerMiddleware(Middleware[COpts, JetStreamBroker]):
         self.streams_config = streams_config
 
     async def after_broker_connect(self, broker: JetStreamBroker):
-
         for stream_config in self.streams_config:
             try:
-                await broker.js.add_stream(stream_config)
+                await broker.js.update_stream(stream_config)
             except Exception as e:
                 self.logger.warning("Error during stream initialization", exc_info=e)

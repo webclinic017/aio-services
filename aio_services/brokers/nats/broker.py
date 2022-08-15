@@ -14,9 +14,8 @@ from aio_services.models import BaseConsumerOptions
 from aio_services.utils.asyncio import backoff
 
 if TYPE_CHECKING:
-    from aio_services.consumer import Consumer
     from aio_services.middleware import Middleware
-    from aio_services.types import Encoder, EventT
+    from aio_services.types import ConsumerT, Encoder, EventT
 
 
 class NatsConsumerOptions(BaseConsumerOptions):
@@ -53,7 +52,7 @@ class NatsBroker(Broker[NatsConsumerOptions, NatsMsg]):
     def get_message_data(message: NatsMsg) -> bytes:
         return message.data
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, consumer: ConsumerT) -> None:
 
         await self.nc.subscribe(
             subject=consumer.topic,
@@ -119,7 +118,7 @@ class JetStreamBroker(NatsBroker):
             headers=headers,
         )
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, consumer: ConsumerT) -> None:
         options = self.get_consumer_options(consumer)
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic, durable=consumer.service_name, config=options.config

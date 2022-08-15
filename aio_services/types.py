@@ -1,20 +1,25 @@
-from typing import Any, Awaitable, Callable, Optional, Protocol, TypeVar, TYPE_CHECKING
+from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, Protocol, TypeVar
 
-from aio_services.models import BaseConsumerOptions, CloudEvent
 
 if TYPE_CHECKING:
+    from aio_services.models import BaseConsumerOptions, CloudEvent
     from aio_services.broker import Broker
+    from aio_services.consumer import BaseConsumer
+
+MessageT = TypeVar("MessageT")
+EventT = TypeVar("EventT", bound="CloudEvent")
+COpts = TypeVar("COpts", bound="BaseConsumerOptions")
+F = TypeVar("F", bound=Callable[..., Any])
 
 BrokerT = TypeVar("BrokerT", bound="Broker")
 
-COpts = TypeVar("COpts", bound=BaseConsumerOptions)
-MessageT = TypeVar("MessageT")
-EventT = TypeVar("EventT", bound=CloudEvent)
+ConsumerT = TypeVar("ConsumerT", bound="BaseConsumer")
 
 HandlerT = Callable[[EventT], Awaitable[Optional[Any]]]
 
-F = TypeVar("F", bound=Callable[..., Any])
+ExcHandler = Callable[[EventT, Exception], Awaitable]
 
 
 class Encoder(Protocol):

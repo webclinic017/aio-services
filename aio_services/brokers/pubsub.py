@@ -15,8 +15,7 @@ from aio_services.middleware import Middleware
 from aio_services.models import BaseConsumerOptions
 
 if TYPE_CHECKING:
-    from aio_services.consumer import Consumer
-    from aio_services.types import Encoder, EventT
+    from aio_services.types import ConsumerT, Encoder, EventT
 
 
 class PubSubConsumerOptions(BaseConsumerOptions):
@@ -45,7 +44,7 @@ class PubSubBroker(Broker[PubSubConsumerOptions, SubscriberMessage]):
     async def _disconnect(self) -> None:
         await self.client.close()
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, consumer: ConsumerT) -> None:
         consumer_client = SubscriberClient(service_file=self.service_file)
         handler = self.get_handler(consumer)
         await subscribe(

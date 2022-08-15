@@ -6,9 +6,7 @@ from typing import TYPE_CHECKING, Any
 from aio_services.middleware import Middleware
 
 if TYPE_CHECKING:
-    from aio_services.broker import Broker
-    from aio_services.consumer import Consumer
-    from aio_services.types import EventT, MessageT
+    from aio_services.types import BrokerT, ConsumerT, EventT, MessageT
 
 
 class CurrentMessageMiddleware(Middleware):
@@ -21,15 +19,19 @@ class CurrentMessageMiddleware(Middleware):
         return self._current_message.get()
 
     async def before_process_message(
-        self, broker: Broker, consumer: Consumer, message: EventT, raw_message: MessageT
+        self,
+        broker: BrokerT,
+        consumer: ConsumerT,
+        message: EventT,
+        raw_message: MessageT,
     ):
         token = self._current_message.set(raw_message)
         self._tokens[message.id] = token
 
     async def after_process_message(
         self,
-        broker: Broker,
-        consumer: Consumer,
+        broker: BrokerT,
+        consumer: ConsumerT,
         message: EventT,
         raw_message: MessageT,
         result: Any | None = None,

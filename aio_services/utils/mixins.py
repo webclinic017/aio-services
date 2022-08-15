@@ -11,16 +11,15 @@ from aio_services.utils.functools import method_cache
 if TYPE_CHECKING:
     import logging
 
-    from aio_services.consumer import Consumer
+    from aio_services.types import ConsumerT
 
 
 class ConsumerOptMixin(Generic[COpts]):
     ConsumerOptions: type[COpts] = BaseConsumerOptions
 
     @method_cache
-    def get_consumer_options(self, consumer: Consumer) -> COpts:
-        model = self.ConsumerOptions.parse_obj(consumer.options)
-        return model
+    def get_consumer_options(self, consumer: ConsumerT) -> COpts:
+        return self.ConsumerOptions.parse_obj(consumer.options)
 
 
 class LoggerMixin:

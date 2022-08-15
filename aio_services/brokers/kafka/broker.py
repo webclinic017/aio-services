@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import asyncio
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import aiokafka
 
 from aio_services.broker import Broker
-from aio_services.consumer import Consumer
 from aio_services.middleware import Middleware
 from aio_services.models import BaseConsumerOptions
-from aio_services.types import Encoder, EventT
+
+if TYPE_CHECKING:
+    from aio_services.types import ConsumerT, Encoder, EventT
 
 
 class KafkaConsumerOptions(BaseConsumerOptions):
@@ -21,9 +24,9 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
         self,
         *,
         bootstrap_servers: str,
-        encoder: Optional[Encoder] = None,
-        middlewares: Optional[List[Middleware]] = None,
-        **options: Any
+        encoder: Encoder | None = None,
+        middlewares: list[Middleware] | None = None,
+        **options: Any,
     ) -> None:
         super().__init__(encoder=encoder, middlewares=middlewares, **options)
         self.bootstrap_servers = bootstrap_servers
@@ -33,7 +36,7 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
     def get_message_data(message: aiokafka.ConsumerRecord) -> bytes:
         return message.value
 
-    async def _start_consumer(self, consumer: Consumer):
+    async def _start_consumer(self, consumer: ConsumerT):
         handler = self.get_handler(consumer)
         consumer_options = self.get_consumer_options(consumer)
         subscriber = aiokafka.AIOKafkaConsumer(
@@ -71,11 +74,11 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
     async def _publish(
         self,
         message: EventT,
-        key: Optional[Any] = None,
-        partition: Optional[Any] = None,
-        headers: Optional[Dict[str, str]] = None,
-        timestamp_ms: Optional[int] = None,
-        **kwargs: Any
+        key: Any | None = None,
+        partition: Any | None = None,
+        headers: dict[str, str] | None = None,
+        timestamp_ms: int | None = None,
+        **kwargs: Any,
     ):
         data = self.encoder.encode(message)
         timestamp_ms = timestamp_ms or int(message.time.timestamp() * 1000)

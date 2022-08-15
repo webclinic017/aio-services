@@ -18,9 +18,7 @@ from aio_services.middleware import Middleware
 from aio_services.utils.datetime import current_millis
 
 if TYPE_CHECKING:
-    from aio_services.broker import Broker
-    from aio_services.consumer import Consumer
-    from aio_services.types import EventT, MessageT
+    from aio_services.types import BrokerT, ConsumerT, EventT, MessageT
 
 
 class PrometheusMiddleware(Middleware):
@@ -73,7 +71,11 @@ class PrometheusMiddleware(Middleware):
         self.message_start_times: dict[UUID | str, int] = {}
 
     async def before_process_message(
-        self, broker: Broker, consumer: Consumer, message: EventT, raw_message: MessageT
+        self,
+        broker: BrokerT,
+        consumer: ConsumerT,
+        message: EventT,
+        raw_message: MessageT,
     ):
         labels = (consumer.topic, consumer.service_name, consumer.name)
         self.in_progress.labels(*labels).inc()
@@ -81,8 +83,8 @@ class PrometheusMiddleware(Middleware):
 
     async def after_process_message(
         self,
-        broker: Broker,
-        consumer: Consumer,
+        broker: BrokerT,
+        consumer: ConsumerT,
         message: EventT,
         raw_message: MessageT,
         result: Any | None = None,
@@ -100,11 +102,15 @@ class PrometheusMiddleware(Middleware):
 
     after_skip_message = after_process_message
 
-    async def after_publish(self, broker: Broker, message: EventT, **kwargs):
+    async def after_publish(self, broker: BrokerT, message: EventT, **kwargs):
         self.total_messages_published.labels(message.topic, message.source).inc()
 
     async def after_nack(
-        self, broker: Broker, consumer: Consumer, message: EventT, raw_message: MessageT
+        self,
+        broker: BrokerT,
+        consumer: ConsumerT,
+        message: EventT,
+        raw_message: MessageT,
     ):
         labels = (consumer.topic, consumer.service_name, consumer.name)
         self.total_rejected_messages.labels(*labels).inc()
@@ -113,6 +119,6 @@ class PrometheusMiddleware(Middleware):
     def latest(self):
         return generate_latest(self.registry)
 
-    async def after_broker_connect(self, broker: Broker):
+    async def after_broker_connect(self, broker: BrokerT):
         if self.expose_metrics:
             pass  # RUN http server
