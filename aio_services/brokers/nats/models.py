@@ -1,7 +1,7 @@
-from typing import Optional, Callable, Union, Awaitable, Type
+from typing import Optional, Callable, Union, Awaitable
 
 from nats.js.api import ConsumerConfig
-
+from typing_extensions import Type
 from aio_services import BaseConsumerOptions
 
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, Protocol, TypeVar
-
+from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, TypeVar
+from typing_extensions import Protocol
 
 if TYPE_CHECKING:
     from aio_services.models import BaseConsumerOptions, CloudEvent
