@@ -6,9 +6,10 @@ from aio_pika import ExchangeType
 
 from aio_services.brokers.rabbitmq.broker import RabbitmqBroker
 from aio_services.middleware import Middleware
+from aio_services.types import COpts
 
 if TYPE_CHECKING:
-    from aio_services.types import ConsumerT, COpts
+    from aio_services.types import ConsumerT
 
 
 class DeadLetterQueueMiddleware(Middleware[COpts, RabbitmqBroker]):

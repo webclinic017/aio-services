@@ -1,30 +1,18 @@
 from __future__ import annotations
-
 import asyncio
 from typing import TYPE_CHECKING, Any
 
 import nats
 from nats.aio.msg import Msg as NatsMsg
 from nats.js import JetStreamContext
-from nats.js.api import ConsumerConfig
-
 from aio_services.broker import Broker
+from aio_services.brokers.nats.models import NatsConsumerOptions
 from aio_services.exceptions import BrokerError
-from aio_services.models import BaseConsumerOptions
 from aio_services.utils.asyncio import backoff
 
 if TYPE_CHECKING:
     from aio_services.middleware import Middleware
     from aio_services.types import ConsumerT, Encoder, EventT
-
-
-class NatsConsumerOptions(BaseConsumerOptions):
-    max_msgs: int | None = None
-    pending_msgs_limit: int | None = None
-    pending_bytes_limit: int | None = None
-    prefetch_count: int = 10
-    timeout: int = 60
-    config: ConsumerConfig | None = None
 
 
 class NatsBroker(Broker[NatsConsumerOptions, NatsMsg]):
@@ -35,7 +23,7 @@ class NatsBroker(Broker[NatsConsumerOptions, NatsMsg]):
         *,
         url: str,
         encoder: Encoder | None = None,
-        middlewares: list[Middleware] | None = None,
+        middlewares: Middleware | None = None,
         **options: Any,
     ) -> None:
         super().__init__(encoder=encoder, middlewares=middlewares, **options)
@@ -85,7 +73,7 @@ class JetStreamBroker(NatsBroker):
         *,
         url: str,
         encoder: Encoder | None = None,
-        middlewares: list[Middleware] | None = None,
+        middlewares: Middleware | None = None,
         **options: Any,
     ) -> None:
         super().__init__(url=url, encoder=encoder, middlewares=middlewares, **options)

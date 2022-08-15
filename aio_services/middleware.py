@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from aio_services.types import ConsumerT, EventT, MessageT
 
 
-class Middleware(LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, BrokerT]):
+class Middleware(ConsumerOptMixin[COpts], Generic[COpts, BrokerT], LoggerMixin):
     async def before_service_start(self, broker: BrokerT, service: Service):
         ...
 

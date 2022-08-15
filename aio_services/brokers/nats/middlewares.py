@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from nats.aio.msg import Msg as NatsMsg
@@ -8,26 +8,17 @@ from nats.js.api import StreamConfig
 from nats.js.kv import KeyValue
 
 from aio_services.brokers.nats.broker import JetStreamBroker, NatsBroker
+from aio_services.brokers.nats.models import (
+    RetryConsumerOptions,
+    JetStreamResultConsumerOptions,
+)
 from aio_services.exceptions import Retry
 from aio_services.middleware import Middleware
-from aio_services.models import BaseConsumerOptions
 from aio_services.utils.functools import compute_backoff
+from aio_services.types import COpts
 
 if TYPE_CHECKING:
-    from aio_services.types import BrokerT, ConsumerT, COpts, Encoder, EventT, MessageT
-
-
-class JetStreamResultConsumerOptions(BaseConsumerOptions):
-    store_results: bool = False
-
-
-class RetryConsumerOptions(BaseConsumerOptions):
-    max_retries: int = 10
-    min_backoff: int = 15
-    max_backoff: int = 86400 * 7
-    max_age: int | None = None
-    retry_when: Callable[[int, Exception], Awaitable[bool]] | None = None
-    throws: type[Exception] | tuple[type[Exception]] | None = None
+    from aio_services.types import BrokerT, ConsumerT, Encoder, EventT, MessageT
 
 
 class NatsRetryMessageMiddleware(Middleware[RetryConsumerOptions, NatsBroker]):

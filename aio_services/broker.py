@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from aio_services.types import BrokerT, ConsumerT, Encoder, EventT
 
 
-class Broker(ABC, LoggerMixin, ConsumerOptMixin[COpts], Generic[COpts, MessageT]):
+class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin):
     def __init__(
         self,
         *,
