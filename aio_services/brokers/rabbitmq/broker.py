@@ -6,16 +6,12 @@ from typing import TYPE_CHECKING, Any
 import aio_pika
 
 from aio_services.broker import Broker
+from aio_services.brokers.rabbitmq.models import RabbitmqConsumerOptions
 from aio_services.middleware import Middleware
-from aio_services.models import BaseConsumerOptions, CloudCommand
+from aio_services.models import CloudCommand
 
 if TYPE_CHECKING:
     from aio_services.types import ConsumerT, Encoder, EventT
-
-
-class RabbitmqConsumerOptions(BaseConsumerOptions):
-    prefetch_count: int = 10
-    queue_options: dict[str, Any] = {}
 
 
 class RabbitmqBroker(
