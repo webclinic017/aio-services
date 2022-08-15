@@ -8,7 +8,7 @@ authors = ["Radzim Kowalow <radzim_ko@wp.pl>"]
 asvc = "aio_services.cli:cli"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = ">=3.7,<4.0"
 pydantic = "^1.9.1"
 uvloop = {version = "^0.16.0", optional = true}
 orjson = {version = "^3.7.1", optional = true}
