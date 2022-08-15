@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from aio_services.types import ConsumerT, Encoder, EventT
 
 
-class StubBroker(Broker[BaseConsumerOptions, bytes]):
+class StubBroker(Broker):
     ConsumerOptions = BaseConsumerOptions
 
     def __init__(
