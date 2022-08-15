@@ -60,7 +60,8 @@ class CloudCommand(CloudEvent):
     t: ClassVar[TopicGetter] = TopicGetter()
 
     def __init_subclass__(cls, **kwargs):
-        if topic := kwargs.get("topic"):
+        topic = kwargs.get("topic")
+        if topic:
             assert isinstance(topic, str), "Topic must be string"
             cls.__fields__["topic"] = ModelField(
                 name="topic",
