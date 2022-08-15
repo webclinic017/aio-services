@@ -1,4 +1,4 @@
-from typing import Optional, Callable, Union, Awaitable
+from typing import Optional, Callable, Union, Awaitable, Type
 
 from nats.js.api import ConsumerConfig
 
@@ -24,4 +24,4 @@ class RetryConsumerOptions(BaseConsumerOptions):
     max_backoff: int = 86400 * 7
     max_age: Optional[int] = None
     retry_when: Optional[Callable[[int, Exception], Awaitable[bool]]] = None
-    throws: Optional[Union[type[Exception], tuple[type[Exception]]]] = None
+    throws: Optional[Union[Type[Exception], tuple[Type[Exception]]]] = None

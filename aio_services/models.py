@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, ClassVar, Literal, Optional, Union
+from typing import Any, ClassVar, Optional, Union
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, Extra, Field
@@ -15,7 +15,7 @@ class BaseConsumerOptions(BaseModel):
 
 
 class BaseCloudEvent(BaseModel):
-    version: Literal["1.0"] = "1.0"
+    version: str = "1.0"
     content_type: str = Field("application/json", alias="datacontenttype")
     id: Union[UUID, str] = Field(default_factory=uuid4)
     trace_id: UUID = Field(default_factory=uuid4, alias="traceid")
@@ -65,7 +65,7 @@ class CloudCommand(CloudEvent):
             assert isinstance(topic, str), "Topic must be string"
             cls.__fields__["topic"] = ModelField(
                 name="topic",
-                type_=Literal[topic],  # type: ignore
+                type_=str,
                 required=False,
                 default=topic,
                 alias="subject",
