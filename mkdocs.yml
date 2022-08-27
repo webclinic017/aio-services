@@ -1,0 +1,14 @@
+site_name: "Muninn API"
+theme:
+  name: "material"
+
+nav:
+  - "Index": index.md
+  - "About": about.md
+  - "Usage": usage.md
+  - "API Reference": api_reference.md
+
+plugins:
+  - search
+  - mkdocstrings
+  - render_swagger

@@ -1,42 +1,50 @@
+from __future__ import annotations
+
 import asyncio
-from dataclasses import dataclass
-from typing import Type, Any, Dict
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any
 
-from aio_services.broker import Broker, Consumer, MessageProxy
-from aio_services.types import DataT
+from aio_services.broker import Broker
+from aio_services.middleware import Middleware
+from aio_services.models import BaseConsumerOptions
 
-
-@dataclass
-class StubMessage:
-    data: Any
-
-
-class StubMessageProxy(MessageProxy[StubMessage, DataT]):
-    pass
+if TYPE_CHECKING:
+    from aio_services.types import ConsumerT, Encoder, EventT
 
 
-class StubConsumer(Consumer[StubMessage]):
-    async def _consume(self, broker: "StubBroker") -> None:
-        asyncio.create_task(self._consume_task(broker))
+class StubBroker(Broker):
+    ConsumerOptions = BaseConsumerOptions
 
-    async def _consume_task(self, broker):
-        broker.topics.setdefault(self.topic, asyncio.Queue())
-        queue = broker.topics[self.topic]
-        while True:
+    def __init__(
+        self,
+        *,
+        encoder: Encoder | None = None,
+        middlewares: list[Middleware] | None = None,
+        **options: Any,
+    ) -> None:
+        super().__init__(encoder=encoder, middlewares=middlewares, **options)
+        self.topics: dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
+        self._stopped = False
+
+    @staticmethod
+    def get_message_data(message: bytes) -> bytes:
+        return message
+
+    async def _disconnect(self) -> None:
+        self._stopped = True
+
+    async def _start_consumer(self, consumer: ConsumerT):
+        queue = self.topics[consumer.topic]
+        handler = self.get_handler(consumer)
+        while not self._stopped:
             message = await queue.get()
-            await self._process_message(broker, message)
+            await handler(message)
             queue.task_done()
 
+    async def _connect(self) -> None:
+        ...
 
-class StubBroker(Broker[StubMessage]):
-    def __init__(self, *, group_id: str, **options):
-        super().__init__(group_id=group_id, **options)
-        self.topics: Dict[str, asyncio.Queue] = {}
-
-    @property
-    def consumer_class(self) -> Type[StubConsumer[StubMessage]]:
-        return StubConsumer
-
-    async def _publish(self, topic: str, message, **kwargs):
-        topic = self.topics.get(topic)
-        await topic.put(message)
+    async def _publish(self, message: EventT, **kwargs) -> None:
+        topic = self.topics[message.topic]
+        data = self.encoder.encode(message)
+        await topic.put(data)

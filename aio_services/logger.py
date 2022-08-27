@@ -1,8 +1,10 @@
+import inspect
 import logging
+from typing import Type, Union
 
-logger = logging.getLogger("AS")
 
+def get_logger(module: str, name: Union[str, Type]) -> logging.Logger:
+    if inspect.isclass(name):
+        name = name.__name__
 
-class LogMixin:
-    def __init__(self):
-        self.logger = logging.getLogger(type(self).__name__)
+    return logging.getLogger(f"{module}.{name}")

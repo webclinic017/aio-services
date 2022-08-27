@@ -11,4 +11,5 @@ class JsonEncoder:
 
     @staticmethod
     def decode(data: bytes) -> Any:
+        # TODO: try/except
         return json.loads(data)
