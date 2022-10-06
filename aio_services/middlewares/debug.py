@@ -8,7 +8,7 @@ from aio_services.middleware import Middleware
 def _logged_coro(func):
     @functools.wraps(func)
     async def wrapper(self, *args, **kwargs):
-        self.logger.debug(f"Running func {func.__name__} with {args=}, {kwargs=}")
+        self.logger.debug(f"Running func {func.__name__} with {args}, {kwargs}")
         start = time.perf_counter()
         try:
             return await func(self, *args, **kwargs)

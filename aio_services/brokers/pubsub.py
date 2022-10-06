@@ -11,20 +11,15 @@ from gcloud.aio.pubsub import (
 )
 
 from aio_services.broker import Broker
+from aio_services.exceptions import BrokerError
 from aio_services.middleware import Middleware
-from aio_services.models import BaseConsumerOptions
+from aio_services.utils.asyncio import retry_async
 
 if TYPE_CHECKING:
     from aio_services.types import ConsumerT, Encoder, EventT
 
 
-class PubSubConsumerOptions(BaseConsumerOptions):
-    ...
-
-
-class PubSubBroker(Broker[PubSubConsumerOptions, SubscriberMessage]):
-    ConsumerOptions = PubSubConsumerOptions
-
+class PubSubBroker(Broker[SubscriberMessage]):
     def __init__(
         self,
         *,
@@ -51,14 +46,16 @@ class PubSubBroker(Broker[PubSubConsumerOptions, SubscriberMessage]):
             subscription=consumer.topic,
             handler=handler,
             subscriber_client=consumer_client,
-            **consumer.options,
+            # **consumer.options, TODO: add consumer specific options
         )
 
     @property
     def client(self) -> PublisherClient:
-        assert self._client, "Broker not connected"
+        if self._client is None:
+            raise BrokerError("Broker not connected")
         return self._client
 
+    @retry_async(max_retries=3)
     async def _publish(
         self,
         message: EventT,
@@ -67,10 +64,17 @@ class PubSubBroker(Broker[PubSubConsumerOptions, SubscriberMessage]):
         **kwargs,
     ) -> None:
         msg = PubsubMessage(
-            data=self.encoder.encode(message),
+            data=self.encoder.encode(message.dict()),
             ordering_key=ordering_key or str(message.id),
         )
         await self.client.publish(topic=message.topic, messages=[msg], timeout=timeout)
 
     async def _connect(self) -> None:
         self._client = PublisherClient(service_file=self.service_file)
+
+    @property
+    def is_connected(self) -> bool:
+        return self.client.session._session.closed
+
+    def get_num_delivered(self, raw_message: SubscriberMessage) -> int:
+        return raw_message.delivery_attempt

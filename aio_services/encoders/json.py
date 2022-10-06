@@ -3,6 +3,8 @@ from typing import Any
 
 from pydantic.json import pydantic_encoder
 
+from aio_services.exceptions import DecodeError
+
 
 class JsonEncoder:
     @staticmethod
@@ -11,5 +13,7 @@ class JsonEncoder:
 
     @staticmethod
     def decode(data: bytes) -> Any:
-        # TODO: try/except
-        return json.loads(data)
+        try:
+            return json.loads(data)
+        except json.JSONDecodeError as e:
+            raise DecodeError(data=data, error=e)

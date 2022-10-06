@@ -6,30 +6,26 @@ from typing import TYPE_CHECKING, Any
 import aiokafka
 
 from aio_services.broker import Broker
+from aio_services.exceptions import BrokerError
 from aio_services.middleware import Middleware
-from aio_services.models import BaseConsumerOptions
 
 if TYPE_CHECKING:
-    from aio_services.types import ConsumerT, Encoder, EventT
+    from aio_services.types import ConsumerT, Encoder, EventT, MessageT
 
 
-class KafkaConsumerOptions(BaseConsumerOptions):
-    timeout_ms: int = 60
-
-
-class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
-    ConsumerOptions = KafkaConsumerOptions
-
+class KafkaBroker(Broker[aiokafka.ConsumerRecord]):
     def __init__(
         self,
         *,
         bootstrap_servers: str,
         encoder: Encoder | None = None,
         middlewares: list[Middleware] | None = None,
+        publisher_options: dict[str, Any] | None = None,
         **options: Any,
     ) -> None:
         super().__init__(encoder=encoder, middlewares=middlewares, **options)
         self.bootstrap_servers = bootstrap_servers
+        self._publisher_options = publisher_options or {}
         self._publisher = None
 
     @staticmethod
@@ -38,7 +34,6 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
 
     async def _start_consumer(self, consumer: ConsumerT):
         handler = self.get_handler(consumer)
-        consumer_options = self.get_consumer_options(consumer)
         subscriber = aiokafka.AIOKafkaConsumer(
             consumer.topic,
             group_id=consumer.service_name,
@@ -47,27 +42,30 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
         )
         await subscriber.start()
         while True:
-            result = await subscriber.getmany(timeout_ms=consumer_options.timeout_ms)
+            result = await subscriber.getmany(
+                timeout_ms=consumer.options.get("timeout_ms", 60)
+            )
             for tp, messages in result.items():
                 if messages:
                     tasks = [
                         asyncio.create_task(handler(message) for message in messages)
                     ]
-                    await asyncio.gather(*tasks)
+                    await asyncio.gather(*tasks, return_exceptions=True)
                     await subscriber.commit({tp: messages[-1].offset + 1})
 
     async def _disconnect(self):
-        await self.publisher.stop()
+        if self._publisher:
+            await self._publisher.stop()
 
     @property
     def publisher(self) -> aiokafka.AIOKafkaProducer:
-        assert self._publisher is not None, "Broker not connected"
+        if self._publisher is None:
+            raise BrokerError("Broker not connected")
         return self._publisher
 
     async def _connect(self):
-        publisher_options = self.options.get("publisher_options", {})
         self._publisher = aiokafka.AIOKafkaProducer(
-            bootstrap_servers=self.bootstrap_servers, **publisher_options
+            bootstrap_servers=self.bootstrap_servers, **self._publisher_options
         )
         await self._publisher.start()
 
@@ -80,7 +78,7 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
         timestamp_ms: int | None = None,
         **kwargs: Any,
     ):
-        data = self.encoder.encode(message)
+        data = self.encoder.encode(message.dict())
         timestamp_ms = timestamp_ms or int(message.time.timestamp() * 1000)
         key = key or getattr(message, "key", None)
         await self.publisher.send(
@@ -91,3 +89,9 @@ class KafkaBroker(Broker[KafkaConsumerOptions, aiokafka.ConsumerRecord]):
             headers=headers,
             timestamp_ms=timestamp_ms,
         )
+
+    async def ping(self) -> bool:
+        pass
+
+    def get_num_delivered(self, raw_message: MessageT) -> int:
+        pass

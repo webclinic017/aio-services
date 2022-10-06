@@ -1,10 +1,13 @@
-# TODO: add type annotations
+from __future__ import annotations
 
 import asyncio
 import functools
+from typing import Any, Awaitable, Callable
+
+CF = Callable[..., Awaitable[Any]]
 
 
-def run_async(func):
+def run_async(func: Callable[..., Any]) -> CF:
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         loop = asyncio.get_running_loop()
@@ -13,21 +16,19 @@ def run_async(func):
     return wrapper
 
 
-def backoff(max_retries: int = 3):
+def retry_async(max_retries: int = 5, backoff: int = 2):
     def wrapper(func):
         @functools.wraps(func)
         async def wrapped(*args, **kwargs):
-            attempt = 1
-            while True:
+            exc = None
+            for i in range(1, max_retries + 1):
                 try:
                     return await func(*args, **kwargs)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    if attempt >= max_retries:
-                        raise
-                    attempt += 1
-                    await asyncio.sleep(attempt**2)
+                except Exception as e:
+                    exc = e
+                    await asyncio.sleep(i**backoff)
+            else:
+                raise exc
 
         return wrapped
 

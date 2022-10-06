@@ -21,12 +21,14 @@ class BaseConsumer(ABC, Generic[EventT]):
         service_name: str,
         name: str,
         topic: str,
+        timeout: int = 120,
         **options: Any,
     ):
         self.service_name = service_name
         self.name = name
         self.topic = topic
-        self.options = options
+        self.timeout = timeout
+        self.options: dict[str, Any] = options
         self.logger = get_logger(__name__, f"{service_name}:{self.name}")
 
     @abstractmethod
@@ -59,7 +61,11 @@ class Consumer(BaseConsumer[EventT]):
 
     async def process(self, message: EventT):
         async with self._sem:
-            return await self.fn(message)
+            # TODO: add timeout async with async_timeout.timeout(self.timeout):
+            self.logger.info(f"Processing message {message.id}")
+            result = await self.fn(message)
+            self.logger.info(f"Finished processing {message.id}")
+            return result
 
 
 class GenericConsumer(BaseConsumer[EventT], ABC):

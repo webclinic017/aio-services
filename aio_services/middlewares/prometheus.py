@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from prometheus_client import (
-    REGISTRY,
     CollectorRegistry,
     Counter,
     Gauge,
@@ -22,16 +21,15 @@ if TYPE_CHECKING:
 
 
 class PrometheusMiddleware(Middleware):
+    # TODO: expose metrics via aiohttp server or push to gateway
     def __init__(self, expose_metrics: bool = False):
         self.expose_metrics = expose_metrics
-        registry = REGISTRY
+        self.registry = CollectorRegistry()
         if (
             "prometheus_multiproc_dir" in os.environ
             or "PROMETHEUS_MULTIPROC_DIR" in os.environ
         ):
-            registry = CollectorRegistry()
-            multiprocess.MultiProcessCollector(registry)
-        self.registry = registry
+            multiprocess.MultiProcessCollector(self.registry)
         self.in_progress = Gauge(
             "messages_in_progress",
             "Total number of messages being processed.",

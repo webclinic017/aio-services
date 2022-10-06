@@ -3,21 +3,24 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Awaitable, Callable, Generic
 
-from aio_services.exceptions import Skip
+import async_timeout
+
+from aio_services.exceptions import Reject, Skip
+from aio_services.logger import LoggerMixin
 from aio_services.middleware import Middleware
-from aio_services.types import COpts, MessageT
-from aio_services.utils.mixins import ConsumerOptMixin, LoggerMixin
+from aio_services.middlewares import default_middlewares
+from aio_services.types import MessageT
 
 if TYPE_CHECKING:
     from aio_services.types import BrokerT, ConsumerT, Encoder, EventT
 
 
-class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin):
+class Broker(ABC, Generic[MessageT], LoggerMixin):
     def __init__(
         self,
         *,
         encoder: Encoder | None = None,
-        middlewares: list[Middleware[COpts, BrokerT]] | None = None,
+        middlewares: list[Middleware[BrokerT]] | None = None,
         **options,
     ) -> None:
         if encoder is None:
@@ -26,8 +29,14 @@ class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin
             encoder = get_default_encoder()
 
         self.encoder = encoder
-        middlewares = middlewares or []
-        self.middlewares = middlewares
+        self.middlewares = []
+
+        if middlewares is None:
+            middlewares = [m() for m in default_middlewares]
+
+        for m in middlewares:
+            self.add_middleware(m)
+
         self.options = options
 
     def parse_incoming_message(self, message: MessageT, type_: EventT) -> EventT:
@@ -36,37 +45,56 @@ class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin
         data = type_.parse_obj(decoded)
         return data
 
-    @staticmethod
-    @abstractmethod
-    def get_message_data(message: MessageT) -> bytes:
-        raise NotImplementedError
-
     def get_handler(self, consumer: ConsumerT) -> Callable[[MessageT], Awaitable[None]]:
         async def handler(message: MessageT) -> None:
             exc = None
             result = None
             event = self.parse_incoming_message(message, consumer.event_type)
-            await self.dispatch_before("process_message", event, message)
             try:
-                result = await consumer.process(event)
+                await self.dispatch_before("process_message", consumer, event, message)
             except Skip:
                 self.logger.info(f"Skipped message {event.id}")
                 await self.dispatch_after("skip_message", event, message)
-            # TODO: asyncio.CanceledError handling?
+                await self.ack(consumer, event, message)
+                return
+            try:
+                async with async_timeout.timeout(consumer.timeout):
+                    result = await consumer.process(event)
+
+            # TODO: asyncio.CanceledError handling (?)
+            except Reject as e:
+                exc = e
+                self.logger.error(f"Message {event.id} rejected. {e}")
             except Exception as e:
                 exc = e
             finally:
                 await self.dispatch_after(
                     "process_message", event, message, result, exc
                 )
-                await self.ack(consumer, message)
+                if exc and isinstance(exc, Reject):
+                    await self.nack(consumer, event, message)
+                else:
+                    await self.ack(consumer, event, message)
 
         return handler
 
-    async def ack(self, consumer: ConsumerT, message: MessageT) -> None:
-        await self.dispatch_before("ack", consumer, message)
-        await self._ack(message)
-        await self.dispatch_after("ack", consumer, message)
+    async def ack(
+        self, consumer: ConsumerT, message: EventT, raw_message: MessageT
+    ) -> None:
+        await self.dispatch_before("ack", consumer, message, raw_message)
+        await self._ack(raw_message)
+        await self.dispatch_after("ack", consumer, message, raw_message)
+
+    async def nack(
+        self,
+        consumer: ConsumerT,
+        message: EventT,
+        raw_message: MessageT,
+        delay: int | None = None,
+    ) -> None:
+        await self.dispatch_after("nack", consumer, message, raw_message)
+        await self._nack(raw_message, delay)
+        await self.dispatch_after("nack", consumer, message, raw_message)
 
     async def connect(self) -> None:
         await self.dispatch_before("broker_connect")
@@ -79,9 +107,9 @@ class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin
         await self.dispatch_after("broker_disconnect")
 
     async def publish(self, message: EventT, **kwargs) -> None:
-        await self.dispatch_before("publish", self, message)
+        await self.dispatch_before("publish", message)
         await self._publish(message, **kwargs)
-        await self.dispatch_after("publish", self, message)
+        await self.dispatch_after("publish", message)
 
     async def start_consumer(self, consumer: ConsumerT):
         await self.dispatch_before("consumer_start", consumer)
@@ -95,10 +123,11 @@ class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin
 
     async def _dispatch(self, full_event: str, *args, **kwargs) -> None:
         for m in self.middlewares:
-            try:
-                await getattr(m, full_event)(self, *args, **kwargs)
-            except Exception as e:
-                self.logger.error(f"Unhandled middleware exception {e}")
+            await getattr(m, full_event)(self, *args, **kwargs)
+            # try:
+            #     await getattr(m, full_event)(self, *args, **kwargs)
+            # except Exception as e:
+            #     self.logger.error(f"Unhandled middleware exception {e}")
 
     async def dispatch_before(self, event: str, *args, **kwargs) -> None:
         await self._dispatch(f"before_{event}", *args, **kwargs)
@@ -107,6 +136,11 @@ class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin
         await self._dispatch(f"after_{event}", *args, **kwargs)
 
     # broker specific implementations below
+
+    @staticmethod
+    @abstractmethod
+    def get_message_data(message: MessageT) -> bytes:
+        raise NotImplementedError
 
     @abstractmethod
     async def _publish(self, message: EventT, **kwargs) -> None:
@@ -124,5 +158,18 @@ class Broker(ABC, ConsumerOptMixin[COpts], Generic[COpts, MessageT], LoggerMixin
     async def _start_consumer(self, consumer: ConsumerT) -> None:
         raise NotImplementedError
 
-    async def _ack(self, message: MessageT) -> None:
-        """There is empty default body, because some brokers don't have ack"""
+    @property
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Return broker connection status"""
+        raise NotImplementedError
+
+    @abstractmethod
+    def get_num_delivered(self, raw_message: MessageT) -> int:
+        raise NotImplementedError
+
+    async def _ack(self, raw_message: MessageT) -> None:
+        ...
+
+    async def _nack(self, raw_message: MessageT, delay: int | None = None) -> None:
+        ...
