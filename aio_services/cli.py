@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import logging
 
 import aiorun
 import click
@@ -34,20 +35,21 @@ def cli() -> None:
 
 
 @cli.command(help="Run service")
-@click.argument("app")
-def run(app: str) -> None:
-    click.echo(f"Running service [{app}]...")
-    service = _import_service(app)
-    if service is None:
-        return
-    aiorun.run(service.start(), shutdown_callback=service.stop)
+@click.argument("service")
+@click.option("--log-level", default="info")
+def run(service: str, log_level: str) -> None:
+    click.echo(f"Running service [{service}]...")
+    logging.basicConfig(level=log_level.upper())
+    service = _import_service(service)
+    if service:
+        aiorun.run(service.start(), shutdown_callback=service.stop)
 
 
 @cli.command()
-@click.argument("app")
-def verify(app: str) -> None:
-    click.echo(f"Verifying service [{app}]...")
-    _import_service(app)
+@click.argument("service")
+def verify(service: str) -> None:
+    click.echo(f"Verifying service [{service}]...")
+    _import_service(service)
     click.echo("OK")
 
 

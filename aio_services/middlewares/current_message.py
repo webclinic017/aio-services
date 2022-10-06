@@ -38,6 +38,6 @@ class CurrentMessageMiddleware(Middleware):
         exc: Exception | None = None,
     ):
         try:
-            self._current_message.reset(self._tokens.pop(message.id))
+            self._current_message.reset(self._tokens.pop(message.id, None))
         except Exception:
             pass

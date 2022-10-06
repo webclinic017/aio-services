@@ -10,6 +10,10 @@ class BrokerError(Exception):
     pass
 
 
+class PublishError(BrokerError):
+    pass
+
+
 class MessageError(BrokerError):
     def __init__(self, message: MessageT):
         self.message = message
@@ -27,6 +31,10 @@ class Skip(Exception):
 
 class Fail(Exception):
     """Fail message without retrying"""
+
+
+class Reject(Exception):
+    """Reject (nack) message"""
 
 
 class Retry(Exception):

@@ -8,18 +8,12 @@ from pydantic.fields import ModelField
 from aio_services.utils.datetime import utc_now
 
 
-class BaseConsumerOptions(BaseModel):
-    class Config:
-        allow_population_by_field_name = True
-        arbitrary_types_allowed = True
-
-
 class BaseCloudEvent(BaseModel):
     version: str = "1.0"
     content_type: str = Field("application/json", alias="datacontenttype")
     id: Union[UUID, str] = Field(default_factory=uuid4)
-    trace_id: UUID = Field(default_factory=uuid4, alias="traceid")
-    type: str = "CloudEvent"
+    trace_id: Union[UUID, str] = Field(default_factory=uuid4, alias="traceid")
+    type: str
     source: Optional[str] = None
     topic: Optional[str] = None
     data: Optional[Any] = None

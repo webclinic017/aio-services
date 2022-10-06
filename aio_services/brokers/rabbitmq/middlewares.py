@@ -6,13 +6,12 @@ from aio_pika import ExchangeType
 
 from aio_services.brokers.rabbitmq.broker import RabbitmqBroker
 from aio_services.middleware import Middleware
-from aio_services.types import COpts
 
 if TYPE_CHECKING:
     from aio_services.types import ConsumerT
 
 
-class DeadLetterQueueMiddleware(Middleware[COpts, RabbitmqBroker]):
+class DLXMiddleware(Middleware[RabbitmqBroker]):
     def __init__(self, dlx_name: str = "dlx"):
         self.dlx_name = dlx_name
         self._dlx_exchange = None

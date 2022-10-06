@@ -1,19 +1,20 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, TypeVar
+
 from typing_extensions import Protocol
 
 if TYPE_CHECKING:
-    from aio_services.models import BaseConsumerOptions, CloudEvent
     from aio_services.broker import Broker
     from aio_services.consumer import BaseConsumer
+    from aio_services.models import CloudEvent
 
 MessageT = TypeVar("MessageT")
+BrokerT = TypeVar("BrokerT", bound="Broker")
 EventT = TypeVar("EventT", bound="CloudEvent")
-COpts = TypeVar("COpts", bound="BaseConsumerOptions")
+
 F = TypeVar("F", bound=Callable[..., Any])
 
-BrokerT = TypeVar("BrokerT", bound="Broker")
 
 ConsumerT = TypeVar("ConsumerT", bound="BaseConsumer")
 

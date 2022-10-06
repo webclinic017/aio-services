@@ -1,6 +1,6 @@
 import pytest
 
-from aio_services import Broker
+from aio_services.broker import Broker
 from aio_services.brokers.nats import NatsBroker
 from aio_services.brokers.kafka import KafkaBroker
 from aio_services.brokers.pubsub import PubSubBroker

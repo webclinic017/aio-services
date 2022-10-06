@@ -14,9 +14,17 @@ def event_loop():
     return asyncio.get_event_loop()
 
 
+@pytest.fixture(scope="session")
+def middleware():
+    class EmptyMiddleware(Middleware):
+        pass
+
+    return EmptyMiddleware()
+
+
 @pytest.fixture
-def broker():
-    return StubBroker()
+def broker(middleware):
+    return StubBroker(middlewares=[middleware])
 
 
 @pytest.fixture
@@ -33,14 +41,6 @@ def handler():
     return example_handler
 
 
-@pytest.fixture(scope="session")
-def middleware():
-    class EmptyMiddleware(Middleware):
-        pass
-
-    return EmptyMiddleware()
-
-
 @pytest.fixture()
 def test_consumer(service, handler):
     consumer_name = "test_consumer"
@@ -51,6 +51,7 @@ def test_consumer(service, handler):
 @pytest.fixture()
 def ce() -> CloudEvent:
     return CloudEvent(
+        type="TestEvent",
         topic="test_topic",
         data={"today": date.today().isoformat(), "arr": [1, "2", 3.0]},
     )
