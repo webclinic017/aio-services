@@ -4,14 +4,15 @@ from typing import TYPE_CHECKING, Any
 
 import aioredis
 
-from aio_services.broker import Broker
+from aio_services.broker import BaseBroker
+from aio_services.types import AbstractMessage, ConsumerP, RawMessage
 
 if TYPE_CHECKING:
     from aio_services.middleware import Middleware
-    from aio_services.types import ConsumerT, Encoder, EventT
+    from aio_services.types import Encoder
 
 
-class RedisBroker(Broker[Any, dict[str, str]]):
+class RedisBroker(BaseBroker[Any, dict[str, str]]):
     def __init__(
         self,
         *,
@@ -24,7 +25,14 @@ class RedisBroker(Broker[Any, dict[str, str]]):
         self.url = url
         self._redis = None
 
-    async def _start_consumer(self, consumer: ConsumerT):
+    def parse_incoming_message(self, message: RawMessage) -> Any:
+        pass
+
+    @property
+    def is_connected(self) -> bool:
+        return self.redis.connection.is_connected
+
+    async def _start_consumer(self, consumer: ConsumerP):
         handler = self.get_handler(consumer)
         psub = self.redis.pubsub()
 
@@ -48,6 +56,6 @@ class RedisBroker(Broker[Any, dict[str, str]]):
     async def _connect(self):
         self._redis = aioredis.from_url(url=self.url, **self.options)
 
-    async def _publish(self, message: EventT, **kwargs) -> None:
+    async def _publish(self, message: AbstractMessage, **kwargs) -> None:
         data = self.encoder.encode(message)
         await self.redis.publish(message.topic, data)

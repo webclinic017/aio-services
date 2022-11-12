@@ -17,31 +17,24 @@ def register_service(
     app: Starlette,
     add_health_endpoint: bool = False,
     endpoint: str = "/healthz",
-    route=None,
+    response_class=JSONResponse,
 ) -> None:
     app.on_event("startup")(service.start)
     app.on_event("shutdown")(service.stop)
 
     if add_health_endpoint:
-        if route:
-            get_health_status = route
-        else:
-            for m in service.broker.middlewares:
-                if isinstance(m, HealthCheckMiddleware):
+        for m in service.broker.middlewares:
+            if isinstance(m, HealthCheckMiddleware):
 
-                    async def _get_health_status():
-                        """Return get broker connection status"""
-                        status = m.get_health_status()
-                        return (
-                            JSONResponse({"status": "ok"})
-                            if status
-                            else JSONResponse(
-                                {"status": "Connection error"}, status_code=503
-                            )
+                async def _get_health_status():
+                    """Return get broker connection status"""
+                    status = m.get_health_status()
+                    return (
+                        response_class({"status": "ok"})
+                        if status
+                        else response_class(
+                            {"status": "Connection error"}, status_code=503
                         )
+                    )
 
-                    get_health_status = _get_health_status
-                    break
-            else:
-                raise ValueError("HealthCheckMiddleware not found")
-        app.add_route(path=endpoint, methods=["GET"], route=get_health_status)
+                app.add_route(path=endpoint, methods=["GET"], route=_get_health_status)

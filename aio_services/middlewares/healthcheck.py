@@ -1,4 +1,5 @@
 import asyncio
+import os
 from pathlib import Path
 from typing import Awaitable, Callable, Optional, Sequence
 
@@ -8,6 +9,8 @@ from aio_services.types import BrokerT
 
 class HealthCheckMiddleware(Middleware):
     """Middleware for performing basic health checks on broker"""
+
+    BASE_DIR = os.getenv("HEALTHCHECK_DIR", "/tmp")  # nosec
 
     def __init__(
         self,
@@ -32,13 +35,13 @@ class HealthCheckMiddleware(Middleware):
             await self._task
 
     async def _run_forever(self):
-        p = Path("/tmp/healthy")
+        p = Path(os.path.join(self.BASE_DIR, "healthy"))
         p.touch(exist_ok=True)
         try:
             while True:
                 is_connected = self._broker.is_connected
                 if not is_connected:
-                    p.rename("/tmp/unhealthy")
+                    p.rename(os.path.join(self.BASE_DIR, "unhealthy"))
                     break
                 await asyncio.sleep(self.interval)
         except asyncio.CancelledError:

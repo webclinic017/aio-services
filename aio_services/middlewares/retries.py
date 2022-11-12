@@ -5,12 +5,13 @@ from typing import Any, Awaitable, Callable
 
 from aio_services.exceptions import Retry
 from aio_services.middleware import Middleware
-from aio_services.types import BrokerT, ConsumerT, EventT, MessageT
+from aio_services.types import AbstractIncomingMessage, BrokerT, ConsumerP
 from aio_services.utils.functools import compute_backoff
 
 
 @dataclass(frozen=True)
 class RetryConsumerOptions:
+    # TODO: max_retries not always supported (e.g. rabbitmq)
     max_retries: int = 10
     min_backoff: int = 15
     max_backoff: int = 86400 * 7
@@ -30,9 +31,8 @@ class RetryMiddleware(Middleware[BrokerT]):
     async def after_process_message(
         self,
         broker: BrokerT,
-        consumer: ConsumerT,
-        message: EventT,
-        raw_message: MessageT,
+        consumer: ConsumerP,
+        message: AbstractIncomingMessage,
         result: Any | None = None,
         exc: Exception | None = None,
     ):
@@ -43,7 +43,7 @@ class RetryMiddleware(Middleware[BrokerT]):
         if throws and isinstance(exc, throws):
             return
 
-        retries_so_far = broker.get_num_delivered(raw_message)
+        retries_so_far = broker.get_num_delivered(message)
         retry_when = consumer.options.get(
             "retry_when", self.default_retry_options.retry_when
         )
@@ -57,7 +57,7 @@ class RetryMiddleware(Middleware[BrokerT]):
             and retries_so_far >= max_retries
         ):
             self.logger.error(f"Retry limit exceeded for message {message.id}.")
-            await broker.ack(consumer, message, raw_message)
+            await broker.ack(consumer, message)
         if isinstance(exc, Retry) and exc.delay is not None:
             delay = exc.delay
         else:
@@ -72,4 +72,4 @@ class RetryMiddleware(Middleware[BrokerT]):
             )
 
         self.logger.info("Retrying message %r in %d milliseconds.", message.id, delay)
-        await broker.nack(consumer, message, raw_message)
+        await broker.nack(consumer, message)

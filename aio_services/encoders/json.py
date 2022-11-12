@@ -7,6 +7,8 @@ from aio_services.exceptions import DecodeError
 
 
 class JsonEncoder:
+    CONTENT_TYPE = "application/json"
+
     @staticmethod
     def encode(data: Any) -> bytes:
         return json.dumps(data, default=pydantic_encoder).encode("utf-8")

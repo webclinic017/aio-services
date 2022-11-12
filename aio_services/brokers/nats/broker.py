@@ -7,22 +7,28 @@ import nats
 from nats.aio.msg import Msg as NatsMsg
 from nats.js import JetStreamContext
 
-from aio_services.broker import Broker
+from aio_services.broker import BaseBroker
 from aio_services.exceptions import BrokerError
 from aio_services.utils.asyncio import retry_async
 
 if TYPE_CHECKING:
     from aio_services.middleware import Middleware
-    from aio_services.types import ConsumerT, Encoder, EventT
+    from aio_services.types import (
+        AbstractIncomingMessage,
+        AbstractMessage,
+        ConsumerP,
+        Encoder,
+        T,
+    )
 
 
-class NatsBroker(Broker[NatsMsg]):
+class NatsBroker(BaseBroker[NatsMsg]):
     def __init__(
         self,
         *,
         url: str,
         encoder: Encoder | None = None,
-        middlewares: Middleware | None = None,
+        middlewares: list[Middleware] | None = None,
         connection_options: dict[str, Any] | None = None,
         **options: Any,
     ) -> None:
@@ -37,11 +43,10 @@ class NatsBroker(Broker[NatsMsg]):
             raise BrokerError("Broker not connected. Call await broker.connect() first")
         return self._nc
 
-    @staticmethod
-    def get_message_data(message: NatsMsg) -> bytes:
-        return message.data
+    def parse_incoming_message(self, message: NatsMsg) -> Any:
+        return self.encoder.decode(message.data)
 
-    async def _start_consumer(self, consumer: ConsumerT) -> None:
+    async def _start_consumer(self, consumer: ConsumerP) -> None:
 
         await self.nc.subscribe(
             subject=consumer.topic,
@@ -57,16 +62,13 @@ class NatsBroker(Broker[NatsMsg]):
         self._nc = await nats.connect(self.url, **self.connection_options)
 
     @retry_async(max_retries=3)
-    async def _publish(self, message: EventT, **kwargs) -> None:
+    async def _publish(self, message: AbstractMessage, **kwargs) -> None:
         data = self.encoder.encode(message.dict())
         await self.nc.publish(message.topic, data, **kwargs)
 
     @property
     def is_connected(self) -> bool:
         return self.nc.is_connected
-
-    def get_num_delivered(self, raw_message: NatsMsg) -> int:
-        return raw_message.metadata.num_delivered
 
 
 class JetStreamBroker(NatsBroker):
@@ -98,7 +100,7 @@ class JetStreamBroker(NatsBroker):
     @retry_async(max_retries=3)
     async def _publish(
         self,
-        message: EventT,
+        message: AbstractMessage,
         timeout: float | None = None,
         stream: str | None = None,
         headers: dict[str, str] | None = None,
@@ -112,28 +114,37 @@ class JetStreamBroker(NatsBroker):
             headers=headers,
         )
 
-    async def _start_consumer(self, consumer: ConsumerT) -> None:
+    async def _start_consumer(self, consumer: ConsumerP) -> None:
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic,
             durable=consumer.service_name,
             config=consumer.options.get("config"),
         )
         handler = self.get_handler(consumer)
-        while True:
-            try:
-                messages = await subscription.fetch(
-                    batch=consumer.options.get("prefetch_count", self.prefetch_count),
-                    timeout=consumer.options.get("fetch_timeout", self.fetch_timeout),
-                )
-                tasks = [asyncio.create_task(handler(message)) for message in messages]  # type: ignore
-                await asyncio.gather(*tasks, return_exceptions=True)
-            except nats.errors.TimeoutError:
-                await asyncio.sleep(0)
+        try:
+            while True:
+                try:
+                    messages = await subscription.fetch(
+                        batch=consumer.options.get(
+                            "prefetch_count", self.prefetch_count
+                        ),
+                        timeout=consumer.options.get(
+                            "fetch_timeout", self.fetch_timeout
+                        ),
+                    )
+                    tasks = [asyncio.create_task(handler(message)) for message in messages]  # type: ignore
+                    await asyncio.gather(*tasks, return_exceptions=True)
+                except nats.errors.TimeoutError:
+                    await asyncio.sleep(0)
+        except Exception as e:
+            self.logger.exception("Cancelling consumer", exc_info=e)
 
-    async def _ack(self, raw_message: NatsMsg) -> None:
-        if not raw_message._ackd:
-            await raw_message.ack()
+    async def _ack(self, message: AbstractIncomingMessage[T, NatsMsg]) -> None:
+        if not message.raw._ackd:
+            await message.raw.ack()
 
-    async def _nack(self, raw_message: NatsMsg, delay=None) -> None:
-        if not raw_message._ackd:
-            await raw_message.nak(delay=delay)
+    async def _nack(
+        self, message: AbstractIncomingMessage[T, NatsMsg], delay=None
+    ) -> None:
+        if not message.raw._ackd:
+            await message.raw.nak(delay=delay)

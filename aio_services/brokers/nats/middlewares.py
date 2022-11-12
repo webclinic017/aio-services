@@ -9,7 +9,7 @@ from aio_services.brokers.nats.broker import JetStreamBroker
 from aio_services.middleware import Middleware
 
 if TYPE_CHECKING:
-    from aio_services.types import ConsumerT, Encoder, EventT, MessageT
+    from aio_services.types import AbstractIncomingMessage, ConsumerP, Encoder
 
 
 class NatsJetStreamResultMiddleware(Middleware[JetStreamBroker]):
@@ -20,7 +20,7 @@ class NatsJetStreamResultMiddleware(Middleware[JetStreamBroker]):
 
             encoder = get_default_encoder()
         self.encoder = encoder
-        self.options = options or {}
+        self.options = options
         self._kv = None
 
     @property
@@ -43,9 +43,8 @@ class NatsJetStreamResultMiddleware(Middleware[JetStreamBroker]):
     async def after_process_message(
         self,
         broker: JetStreamBroker,
-        consumer: ConsumerT,
-        message: EventT,
-        raw_message: MessageT,
+        consumer: ConsumerP,
+        message: AbstractIncomingMessage,
         result: Any | None = None,
         exc: Exception | None = None,
     ):

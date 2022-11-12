@@ -6,7 +6,7 @@ import logging
 import aiorun
 import click
 
-from aio_services.service import Service
+from aio_services.service import Service, ServiceGroup
 
 try:
     import uvloop
@@ -16,12 +16,14 @@ except ImportError:
     uvloop = None
 
 
-def _import_service(path: str) -> Service | None:
+def _import_service(path: str) -> Service | ServiceGroup | None:
     module_name, _, service_name = path.partition(":")
     try:
         module = importlib.import_module(module_name)
         service = getattr(module, service_name)
-        assert isinstance(service, Service), "Object must be instance of Service"
+        assert isinstance(
+            service, (Service, ServiceGroup)
+        ), "Object must be instance of Service(Group)"
         return service
     except (AttributeError, ImportError) as e:
         click.echo(f"Service {service_name} not found in module {module_name}")
