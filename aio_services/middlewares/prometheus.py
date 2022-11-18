@@ -17,7 +17,12 @@ from aio_services.middleware import Middleware
 from aio_services.utils.datetime import current_millis
 
 if TYPE_CHECKING:
-    from aio_services.types import BrokerT, ConsumerT, EventT, MessageT
+    from aio_services.types import (
+        AbstractIncomingMessage,
+        AbstractMessage,
+        BrokerT,
+        ConsumerP,
+    )
 
 
 class PrometheusMiddleware(Middleware):
@@ -69,11 +74,7 @@ class PrometheusMiddleware(Middleware):
         self.message_start_times: dict[UUID | str, int] = {}
 
     async def before_process_message(
-        self,
-        broker: BrokerT,
-        consumer: ConsumerT,
-        message: EventT,
-        raw_message: MessageT,
+        self, broker: BrokerT, consumer: ConsumerP, message: AbstractIncomingMessage
     ):
         labels = (consumer.topic, consumer.service_name, consumer.name)
         self.in_progress.labels(*labels).inc()
@@ -82,9 +83,8 @@ class PrometheusMiddleware(Middleware):
     async def after_process_message(
         self,
         broker: BrokerT,
-        consumer: ConsumerT,
-        message: EventT,
-        raw_message: MessageT,
+        consumer: ConsumerP,
+        message: AbstractIncomingMessage,
         result: Any | None = None,
         exc: Exception | None = None,
     ):
@@ -100,15 +100,11 @@ class PrometheusMiddleware(Middleware):
 
     after_skip_message = after_process_message
 
-    async def after_publish(self, broker: BrokerT, message: EventT, **kwargs):
+    async def after_publish(self, broker: BrokerT, message: AbstractMessage, **kwargs):
         self.total_messages_published.labels(message.topic, message.source).inc()
 
     async def after_nack(
-        self,
-        broker: BrokerT,
-        consumer: ConsumerT,
-        message: EventT,
-        raw_message: MessageT,
+        self, broker: BrokerT, consumer: ConsumerP, message: AbstractIncomingMessage
     ):
         labels = (consumer.topic, consumer.service_name, consumer.name)
         self.total_rejected_messages.labels(*labels).inc()

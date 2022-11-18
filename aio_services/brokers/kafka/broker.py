@@ -44,7 +44,7 @@ class KafkaBroker(BaseBroker[aiokafka.ConsumerRecord]):
             enable_auto_commit=False,
         )
         await subscriber.start()
-        while True:
+        while self._is_connected:
             result = await subscriber.getmany(
                 timeout_ms=consumer.options.get("timeout_ms", 600)
             )

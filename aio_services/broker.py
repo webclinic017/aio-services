@@ -85,7 +85,7 @@ class BaseBroker(AbstractBroker[RawMessage], LoggerMixin, ABC):
 
     def get_handler(
         self, consumer: ConsumerP
-    ) -> Callable[[RawMessage], Awaitable[None]]:
+    ) -> Callable[[RawMessage], Awaitable[Any | None]]:
         async def handler(raw_message: RawMessage) -> None:
             exc = None
             result = None
@@ -110,11 +110,20 @@ class BaseBroker(AbstractBroker[RawMessage], LoggerMixin, ABC):
             try:
                 async with async_timeout.timeout(consumer.timeout):
                     result = await consumer.process(message)
-
+                if consumer.response and result is not None:
+                    await self.publish_event(
+                        CloudEvent(
+                            type=consumer.response.type,
+                            topic=consumer.response.topic,
+                            data=result,
+                            trace_id=message.trace_id,
+                            source=consumer.service_name,
+                        )
+                    )
             # TODO: asyncio.CanceledError handling (?)
             except Reject as e:
                 exc = e
-                self.logger.error(f"Message {message.id} rejected. {e}")
+                self.logger.exception(f"Message {message.id} rejected", exc_info=e)
             except Exception as e:
                 exc = e
             finally:
@@ -163,8 +172,8 @@ class BaseBroker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         async with self._lock:
             if self._is_connected:
                 await self.dispatch_before("broker_disconnect")
-                await self._disconnect()
                 self._is_connected = False
+                await self._disconnect()
                 await self.dispatch_after("broker_disconnect")
 
     async def publish_event(self, message: CloudEvent, **kwargs):

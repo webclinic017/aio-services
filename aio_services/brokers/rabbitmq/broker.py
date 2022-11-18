@@ -1,7 +1,7 @@
 from __future__ import annotations
 
+import asyncio
 from typing import TYPE_CHECKING, Any
-from uuid import uuid4
 
 import aio_pika
 
@@ -36,8 +36,12 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
         self.exchange_name = exchange_name
         self._connection = None
         self._exchange = None
+        self._channels = []
 
     async def _disconnect(self) -> None:
+        await asyncio.gather(
+            *[c.close() for c in self._channels], return_exceptions=True
+        )
         await self.connection.close()
 
     async def _start_consumer(self, consumer: ConsumerP) -> None:
@@ -48,11 +52,13 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
         options: dict[str, Any] = consumer.options.get(
             "queue_options", self.queue_options
         )
-        options.setdefault("durable", True)
+        is_durable = not consumer.dynamic
+        options.setdefault("durable", is_durable)
         queue = await channel.declare_queue(name=consumer.full_name, **options)
         await queue.bind(self._exchange, routing_key=consumer.topic)
         handler = self.get_handler(consumer)
         await queue.consume(handler)
+        self._channels.append(channel)
 
     @property
     def connection(self) -> aio_pika.RobustConnection:
@@ -66,8 +72,12 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
         )
 
     async def _publish(self, message: AbstractMessage, **kwargs) -> None:
-        body = self.encoder.encode(message.dict())
+        body = self.encoder.encode(message.data)
+        headers = kwargs.pop("headers", {})
+        headers.setdefault("X-Trace-ID", str(message.trace_id))
+        headers.setdefault("version", "1.0")
         msg = aio_pika.Message(
+            headers=headers,
             body=body,
             app_id=message.source,
             content_type=message.content_type,
@@ -77,12 +87,8 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
             content_encoding="UTF-8",
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
-        headers = kwargs.pop("headers", {})
-        headers.setdefault("X-Trace-ID", str(uuid4()))
-        headers.setdefault("version", "1.0")
-        await self._exchange.publish(
-            msg, routing_key=message.topic, headers=headers, **kwargs
-        )
+
+        await self._exchange.publish(msg, routing_key=message.topic, **kwargs)
 
     async def _ack(self, message: AbstractIncomingMessage) -> None:
         await message.raw.ack()

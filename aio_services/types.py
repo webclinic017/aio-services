@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
 from datetime import datetime
 from typing import (
     TYPE_CHECKING,
@@ -36,11 +39,11 @@ class Encoder(Protocol):
 class AbstractMessage(Protocol[T]):
     version: str
     content_type: str
-    id: Union[UUID, str]
-    trace_id: Union[UUID, str]
+    id: UUID | str
+    trace_id: UUID | str
     topic: str
     type: str
-    source: Optional[str]
+    source: str | None
     data: T
     time: datetime
 
@@ -55,12 +58,20 @@ class AbstractIncomingMessage(AbstractMessage[T], Generic[T, RawMessage]):
 IncomingMessage = TypeVar("IncomingMessage", bound=AbstractIncomingMessage)
 
 
+@dataclass
+class Response:
+    topic: str
+    type: str = "CloudEvent"
+
+
 class ConsumerP(Protocol[IncomingMessage, T]):
     name: str
     service_name: str
     topic: str
     event_type: T
-    timeout: Union[int, float]
+    timeout: int | float
+    response: Response | None
+    dynamic: bool
     options: dict[str, Any]
 
     full_name: str  # qualname?
@@ -76,11 +87,3 @@ FT = Callable[[AbstractIncomingMessage], Awaitable[Optional[Any]]]
 MessageHandlerT = Union[Type[ConsumerP], FT]
 
 ExcHandler = Callable[[AbstractIncomingMessage, Exception], Awaitable]
-
-
-class Application(Protocol):
-    async def start(self) -> None:
-        ...
-
-    async def stop(self) -> None:
-        ...

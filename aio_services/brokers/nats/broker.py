@@ -56,6 +56,7 @@ class NatsBroker(BaseBroker[NatsMsg]):
 
     async def _disconnect(self) -> None:
         if self._nc:
+            print("In disconnect")
             await self._nc.close()
 
     async def _connect(self) -> None:
@@ -117,13 +118,14 @@ class JetStreamBroker(NatsBroker):
     async def _start_consumer(self, consumer: ConsumerP) -> None:
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic,
-            durable=consumer.service_name,
+            durable=consumer.full_name,
             config=consumer.options.get("config"),
         )
         handler = self.get_handler(consumer)
         try:
-            while True:
+            while self._is_connected:
                 try:
+                    print("In while True _start_consumer")
                     messages = await subscription.fetch(
                         batch=consumer.options.get(
                             "prefetch_count", self.prefetch_count
@@ -135,9 +137,12 @@ class JetStreamBroker(NatsBroker):
                     tasks = [asyncio.create_task(handler(message)) for message in messages]  # type: ignore
                     await asyncio.gather(*tasks, return_exceptions=True)
                 except nats.errors.TimeoutError:
-                    await asyncio.sleep(0)
-        except Exception as e:
-            self.logger.exception("Cancelling consumer", exc_info=e)
+                    await asyncio.sleep(1)
+        except Exception:
+            self.logger.exception("Cancelling consumer")
+        finally:
+            if consumer.dynamic:
+                await subscription.unsubscribe()
 
     async def _ack(self, message: AbstractIncomingMessage[T, NatsMsg]) -> None:
         if not message.raw._ackd:

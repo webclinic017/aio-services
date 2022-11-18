@@ -14,63 +14,56 @@ class Service(LoggerMixin):
         self.name = name
         self.broker = broker
         self.consumers: dict[str, ConsumerP] = {}
-        self._tasks: list[asyncio.Task] = []
+        self._publish_registry: set[type[CloudEvent]] = set()
 
     def subscribe(
         self,
         topic: str,
         name: str | None = None,
-        concurrency: int = 10,
         **options: Any,
     ):
         def wrapper(func_or_cls: MessageHandlerT) -> MessageHandlerT:
+            kwargs = {"service_name": self.name, "topic": topic}
             if callable(func_or_cls):
-                consumer = Consumer(
-                    service_name=self.name,
-                    topic=topic,
-                    fn=func_or_cls,
-                    name=name or func_or_cls.__name__,
-                    concurrency=concurrency,
-                    **options,
-                )
+                clazz = Consumer
+                kwargs.update({"fn": func_or_cls, "name": name or func_or_cls.__name__})
             elif issubclass(func_or_cls, GenericConsumer):
-                consumer = func_or_cls(
-                    service_name=self.name,
-                    topic=topic,
-                    name=name or func_or_cls.__name__,
-                    concurrency=concurrency,
-                    **options,
-                )
+                clazz = func_or_cls
             else:
-                raise TypeError("Unknown handler")
+                raise TypeError(
+                    f"Unknown handler type, expected one of <Callable, GenericConsumer> got {func_or_cls}"
+                )
+            consumer = clazz(**kwargs, **options)
             self.consumers[consumer.name] = cast(
                 ConsumerP, consumer
-            )  # this shouldn't be cast
+            )  # this shouldn't be cast ?
             return func_or_cls
+
+        return wrapper
+
+    def publishes(self):
+        def wrapper(cls: type[CloudEvent]):
+            self._publish_registry.add(cls)
+            return cls
 
         return wrapper
 
     async def publish_event(self, message: CloudEvent, **kwargs: Any) -> None:
         await self.broker.publish_event(message, **kwargs)
 
-    async def publish(self, topic: str, type_, data: Any, **kwargs):
+    async def publish(
+        self, topic: str, data: Any = None, type_: str = "CloudEvent", **kwargs
+    ):
         await self.broker.publish(topic, type_, data, source=self.name, **kwargs)
 
     async def start(self) -> None:
         await self.broker.connect()
         await self.broker.dispatch_before("service_start", self)
-        self._tasks = [
+        for consumer in self.consumers.values():
             asyncio.create_task(self.broker.start_consumer(consumer))
-            for consumer in self.consumers.values()
-        ]
         await self.broker.dispatch_after("service_start", self)
 
     async def stop(self, *args, **kwargs) -> None:
-        print(args, kwargs)
-        for t in self._tasks:
-            t.cancel()
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-
         await self.broker.disconnect()
 
 
@@ -87,4 +80,6 @@ class ServiceGroup:
         await asyncio.gather(*[svc.start() for svc in self.services])
 
     async def stop(self) -> None:
-        await asyncio.gather(*[svc.stop() for svc in self.services])
+        await asyncio.gather(
+            *[svc.stop() for svc in self.services], return_exceptions=True
+        )

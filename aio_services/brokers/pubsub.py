@@ -45,7 +45,7 @@ class PubSubBroker(BaseBroker[SubscriberMessage]):
             subscription=consumer.topic,
             handler=handler,
             subscriber_client=consumer_client,
-            # **consumer.options, TODO: add consumer specific options
+            **consumer.options.get("subscribe_options", {}),
         )
 
     @property
