@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.23.1
+    rev: v3.1.0
     hooks:
       - id: pyupgrade
         args: ["--py36-plus"]
@@ -9,7 +9,7 @@ repos:
     rev: 3.9.2
     hooks:
       - id: flake8
-        args: ["--count", "--max-complexity", "10", "--statistics"]
+        args: ["--count", "--max-complexity", "10", "--statistics", "./aio_services"]
 
   - repo: https://github.com/asottile/yesqa
     rev: v1.2.3
@@ -41,3 +41,9 @@ repos:
     hooks:
       - id: black
         args: ["--line-length", "88"]
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.4
+    hooks:
+    - id: bandit
+      args: ["--skip", "B101", "-r", "./aio_services"]

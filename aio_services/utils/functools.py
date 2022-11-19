@@ -1,42 +1,35 @@
 from __future__ import annotations
 
+import asyncio
 import functools
-import weakref
-from random import uniform
-from typing import cast
+from typing import Any, Awaitable, Callable
 
-from aio_services.types import F
+CF = Callable[..., Awaitable[Any]]
 
 
-def method_cache(func: F) -> F:
+def run_async(func: Callable[..., Any]) -> CF:
     @functools.wraps(func)
-    def wrapped(self, *args, **kwargs):
-        # We're storing the wrapped method inside the instance. If we had
-        # a strong reference to self the instance would never die.
-        self_weak = weakref.ref(self)
+    def wrapper(*args, **kwargs):
+        loop = asyncio.get_running_loop()
+        return loop.run_in_executor(None, functools.partial(func, *args, **kwargs))
 
+    return wrapper
+
+
+def retry_async(max_retries: int = 5, backoff: int = 2):
+    def wrapper(func):
         @functools.wraps(func)
-        @functools.cache
-        def cached_method(*args, **kwargs):
-            return func(self_weak(), *args, **kwargs)
+        async def wrapped(*args, **kwargs):
+            exc = None
+            for i in range(1, max_retries + 1):
+                try:
+                    return await func(*args, **kwargs)
+                except Exception as e:
+                    exc = e
+                    await asyncio.sleep(i**backoff)
+            else:
+                raise exc
 
-        setattr(self, func.__name__, cached_method)
-        return cached_method(*args, **kwargs)
+        return wrapped
 
-    return cast(F, wrapped)
-
-
-def compute_backoff(
-    attempts,
-    *,
-    factor: int = 5,
-    jitter: bool = True,
-    max_backoff: int = 2000,
-    max_exponent: int = 32,
-) -> tuple[int, int]:
-    exponent = min(attempts, max_exponent)
-    backoff = min(factor * 2**exponent, max_backoff)
-    if jitter:
-        backoff /= 2
-        backoff = int(backoff + uniform(0, backoff))
-    return attempts + 1, backoff
+    return wrapper

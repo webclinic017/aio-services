@@ -4,8 +4,8 @@ from datetime import date
 import pytest
 import pytest_asyncio
 
-from aio_services import Service, CloudEvent
-from aio_services.brokers.stub import StubBroker
+from aio_services import Service, CloudEvent, GenericConsumer
+from aio_services.backends.stub import StubBroker
 from aio_services.middleware import Middleware
 
 
@@ -46,6 +46,17 @@ def test_consumer(service, handler):
     consumer_name = "test_consumer"
     service.subscribe("test_topic", name=consumer_name)(handler)
     return service.consumers[consumer_name]
+
+
+@pytest.fixture()
+def generic_test_consumer(service):
+    @service.subscribe("test_topic")
+    class Consumer(GenericConsumer):
+        name = "test_generic_consumer"
+
+        async def process(self, message: CloudEvent):
+            assert isinstance(message, CloudEvent)
+            return 42
 
 
 @pytest.fixture()

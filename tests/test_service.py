@@ -1,7 +1,7 @@
 import asyncio
 
 from aio_services import Service, CloudEvent
-from aio_services.brokers.stub import StubBroker
+from aio_services.backends.stub import StubBroker
 
 
 def test_service(service):
@@ -11,7 +11,7 @@ def test_service(service):
 
 
 async def test_service_scope(running_service: Service, ce):
-    await running_service.publish(ce)
+    await running_service.publish_event(ce)
     queue: asyncio.Queue = running_service.broker.topics[ce.topic]
     msg = await queue.get()
     queue.task_done()

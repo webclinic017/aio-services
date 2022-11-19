@@ -1,62 +1,91 @@
 from __future__ import annotations
 
 import asyncio
-from typing import TYPE_CHECKING, Any, Callable
+import inspect
+from typing import TYPE_CHECKING, Any
 
-from aio_services.consumer import Consumer
+from aio_services import CloudEvent
+from aio_services.consumer import Consumer, GenericConsumer
 from aio_services.logger import LoggerMixin
 
 if TYPE_CHECKING:
-    from aio_services.types import BrokerT, ConsumerT, EventT, HandlerT
+    from aio_services.broker import Broker
+    from aio_services.types import MessageHandlerT
 
 
 class Service(LoggerMixin):
-    def __init__(self, name: str, broker: BrokerT, auto_connect: bool = True):
+    def __init__(self, name: str, broker: Broker):
         self.name = name
         self.broker = broker
-        self.auto_connect = auto_connect
         self.consumers: dict[str, Consumer] = {}
-        self._tasks: list[asyncio.Task] = []
+        self._publish_registry: set[type[CloudEvent]] = set()
 
     def subscribe(
         self,
         topic: str,
         name: str | None = None,
-        concurrency: int = 10,
-        consumer_class: type[ConsumerT] = Consumer,
-        **options: Any,
-    ) -> Callable[[HandlerT], HandlerT]:
-        def wrapper(func: HandlerT) -> HandlerT:
-            consumer: Consumer = consumer_class(
-                service_name=self.name,
-                topic=topic,
-                fn=func,
-                name=name,
-                concurrency=concurrency,
-                **options,
-            )
+        **extra: Any,
+    ):
+        def wrapper(func_or_cls: MessageHandlerT) -> MessageHandlerT:
+            if callable(func_or_cls):
+                consumer = Consumer(
+                    service_name=self.name,
+                    topic=topic,
+                    name=name,
+                    fn=func_or_cls,  # type: ignore
+                    **extra,
+                )
+            elif inspect.isclass(func_or_cls) and issubclass(
+                func_or_cls, GenericConsumer
+            ):
+                consumer = func_or_cls(
+                    service_name=self.name, topic=topic, name=name, **extra
+                )
+            else:
+                raise TypeError("Expected function or generic consumer")
+
             self.consumers[consumer.name] = consumer
-            return func
+            return func_or_cls
 
         return wrapper
 
-    async def publish(self, message: EventT, **kwargs: Any) -> None:
-        message.source = self.name
-        await self.broker.publish(message, **kwargs)
+    def publishes(self):
+        def wrapper(cls: type[CloudEvent]):
+            self._publish_registry.add(cls)
+            return cls
+
+        return wrapper
+
+    async def publish_event(self, message: CloudEvent, **kwargs: Any) -> None:
+        await self.broker.publish_event(message, **kwargs)
+
+    async def publish(
+        self, topic: str, data: Any = None, type_: str = "CloudEvent", **kwargs
+    ):
+        await self.broker.publish(topic, type_, data, source=self.name, **kwargs)
 
     async def start(self) -> None:
-        if self.auto_connect:
-            await self.broker.connect()
+        await self.broker.connect()
         await self.broker.dispatch_before("service_start", self)
-        self._tasks = [
+        for consumer in self.consumers.values():
             asyncio.create_task(self.broker.start_consumer(consumer))
-            for consumer in self.consumers.values()
-        ]
         await self.broker.dispatch_after("service_start", self)
 
+    async def stop(self, *args, **kwargs) -> None:
+        await self.broker.disconnect()
+
+
+class ServiceGroup:
+    def __init__(self, services: list[Service] | None = None):
+        self.services = services or []
+
+    def add_service(self, service: Service):
+        self.services.append(service)
+
+    async def start(self) -> None:
+        await asyncio.gather(*[svc.start() for svc in self.services])
+
     async def stop(self) -> None:
-        for t in self._tasks:
-            t.cancel()
-        await asyncio.gather(*self._tasks, return_exceptions=True)
-        if self.auto_connect:
-            await self.broker.disconnect()
+        await asyncio.gather(
+            *[svc.stop() for svc in self.services], return_exceptions=True
+        )

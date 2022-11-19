@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from aio_services.types import MessageT
+    from aio_services.models import CloudEvent
 
 
 class BrokerError(Exception):
@@ -15,7 +15,7 @@ class PublishError(BrokerError):
 
 
 class MessageError(BrokerError):
-    def __init__(self, message: MessageT):
+    def __init__(self, message: CloudEvent):
         self.message = message
 
 

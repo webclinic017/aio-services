@@ -1,31 +1,42 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Awaitable, Callable, Optional, TypeVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Optional,
+    Type,
+    TypeVar,
+    Union,
+)
+from uuid import UUID
 
+from pydantic import BaseModel
 from typing_extensions import Protocol
 
 if TYPE_CHECKING:
-    from aio_services.broker import Broker
-    from aio_services.consumer import BaseConsumer
+    from aio_services.consumer import GenericConsumer
     from aio_services.models import CloudEvent
 
-MessageT = TypeVar("MessageT")
-BrokerT = TypeVar("BrokerT", bound="Broker")
-EventT = TypeVar("EventT", bound="CloudEvent")
+UUIDStr = Union[UUID, str]
 
-F = TypeVar("F", bound=Callable[..., Any])
+RawMessage = TypeVar("RawMessage")
 
-
-ConsumerT = TypeVar("ConsumerT", bound="BaseConsumer")
-
-HandlerT = Callable[[EventT], Awaitable[Optional[Any]]]
-
-ExcHandler = Callable[[EventT, Exception], Awaitable]
+T = TypeVar("T", bound=BaseModel)
 
 
 class Encoder(Protocol):
+    CONTENT_TYPE: str
+
     def encode(self, data: Any) -> bytes:
         ...
 
     def decode(self, data: bytes) -> Any:
         ...
+
+
+FT = Callable[["CloudEvent"], Awaitable[Optional[Any]]]
+MessageHandlerT = Union[Type["GenericConsumer"], FT]
+
+ExcHandler = Callable[["CloudEvent", Exception], Awaitable]

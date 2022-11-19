@@ -1,23 +1,27 @@
 from datetime import datetime
-from typing import Any, ClassVar, Optional, Union
-from uuid import UUID, uuid4
+from typing import Any, Generic, Optional
+from uuid import uuid4
 
 from pydantic import BaseModel, Extra, Field
 from pydantic.fields import ModelField
 
+from aio_services.types import RawMessage, T, UUIDStr
 from aio_services.utils.datetime import utc_now
 
 
-class BaseCloudEvent(BaseModel):
-    version: str = "1.0"
+class CloudEvent(BaseModel, Generic[T, RawMessage]):
+    version: Optional[str] = "1.0"
     content_type: str = Field("application/json", alias="datacontenttype")
-    id: Union[UUID, str] = Field(default_factory=uuid4)
-    trace_id: Union[UUID, str] = Field(default_factory=uuid4, alias="traceid")
-    type: str
-    source: Optional[str] = None
-    topic: Optional[str] = None
-    data: Optional[Any] = None
+    id: UUIDStr = Field(default_factory=uuid4)
+    trace_id: UUIDStr = Field(default_factory=uuid4, alias="traceid")
     time: datetime = Field(default_factory=utc_now)
+
+    topic: str = Field(..., alias="subject")
+    type: Optional[str] = None
+    source: Optional[str] = None
+    data: Optional[Any] = None
+
+    _raw: Optional[RawMessage] = None
 
     def __init_subclass__(cls, **kwargs):
         if "abstract" not in kwargs:
@@ -35,36 +39,13 @@ class BaseCloudEvent(BaseModel):
         kwargs.setdefault("by_alias", True)
         return super().dict(**kwargs)
 
+    @property
+    def raw(self):
+        if self._raw is None:
+            raise AttributeError("raw property accessible only for incoming messages")
+        return self._raw
+
     class Config:
-        extra = Extra.allow
         use_enum_values = True
         allow_population_by_field_name = True
-
-
-class TopicGetter:
-    def __get__(self, instance, owner: BaseCloudEvent):
-        return owner.__fields__["topic"].get_default()
-
-
-class CloudEvent(BaseCloudEvent):
-    topic: str = Field(..., alias="subject")
-
-
-class CloudCommand(CloudEvent):
-    t: ClassVar[TopicGetter] = TopicGetter()
-
-    def __init_subclass__(cls, **kwargs):
-        topic = kwargs.get("topic")
-        if topic:
-            assert isinstance(topic, str), "Topic must be string"
-            cls.__fields__["topic"] = ModelField(
-                name="topic",
-                type_=str,
-                required=False,
-                default=topic,
-                alias="subject",
-                class_validators=None,
-                model_config=cls.__config__,
-            )
-        else:
-            raise ValueError("CloudCommand subclass must define 'topic' as class kwarg")
+        extra = Extra.allow

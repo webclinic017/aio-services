@@ -9,13 +9,14 @@ from aio_services.broker import Broker
 from aio_services.middleware import Middleware
 
 if TYPE_CHECKING:
-    from aio_services.types import ConsumerT, Encoder, EventT
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
+    from aio_services.types import Encoder
 
 
 @dataclass
 class Message:
     data: bytes
-    num_delivered: int = 1
     queue: asyncio.Queue | None = None
 
 
@@ -31,14 +32,13 @@ class StubBroker(Broker[Message]):
         self.topics: dict[str, asyncio.Queue] = defaultdict(asyncio.Queue)
         self._stopped = False
 
-    @staticmethod
-    def get_message_data(message: Message) -> bytes:
-        return message.data
+    def parse_incoming_message(self, message: Message) -> Any:
+        return self.encoder.decode(message.data)
 
     async def _disconnect(self) -> None:
         self._stopped = True
 
-    async def _start_consumer(self, consumer: ConsumerT):
+    async def _start_consumer(self, consumer: Consumer):
         queue = self.topics[consumer.topic]
         handler = self.get_handler(consumer)
         while not self._stopped:
@@ -48,23 +48,20 @@ class StubBroker(Broker[Message]):
     async def _connect(self) -> None:
         pass
 
-    def get_num_delivered(self, raw_message: Message) -> int:
-        return raw_message.num_delivered
-
-    async def _publish(self, message: EventT, **_) -> None:
-        topic = self.topics[message.topic]
+    async def _publish(self, message: CloudEvent, **_) -> None:
+        queue = self.topics[message.topic]
         data = self.encoder.encode(message.dict())
-        msg = Message(data=data, queue=topic)
-        await topic.put(msg)
+        msg = Message(data=data, queue=queue)
+        await queue.put(msg)
 
-    async def _ack(self, raw_message: Message) -> None:
-        raw_message.queue.task_done()
+    async def _ack(self, message: CloudEvent) -> None:
+        message.raw.queue.task_done()
 
-    async def _nack(self, raw_message: Message, delay: int | None = None) -> None:
-        raw_message.num_delivered += 1
+    async def _nack(self, message: CloudEvent, delay: int | None = None) -> None:
+
         if delay:
             await asyncio.sleep(delay)
-        await raw_message.queue.put(raw_message)
+        await message.raw.queue.put(message.raw)
 
     def is_connected(self) -> bool:
         return True

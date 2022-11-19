@@ -1,4 +1,4 @@
-site_name: "Muninn API"
+site_name: "Aio Services"
 theme:
   name: "material"
 
@@ -11,4 +11,3 @@ nav:
 plugins:
   - search
   - mkdocstrings
-  - render_swagger

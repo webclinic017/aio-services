@@ -2,18 +2,18 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING, Any, Generic, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Generic, get_type_hints
 
 from aio_services.logger import get_logger
-from aio_services.types import EventT
-from aio_services.utils.asyncio import run_async
+from aio_services.types import FT, T
+from aio_services.utils.functools import run_async
 
 if TYPE_CHECKING:
-    from aio_services.types import HandlerT
+    from aio_services.models import CloudEvent
 
 
-class BaseConsumer(ABC, Generic[EventT]):
-    event_type: EventT
+class AbstractConsumer(ABC, Generic[T]):
+    event_type: T
 
     def __init__(
         self,
@@ -22,56 +22,84 @@ class BaseConsumer(ABC, Generic[EventT]):
         name: str,
         topic: str,
         timeout: int = 120,
+        dynamic: bool = False,
         **options: Any,
     ):
         self.service_name = service_name
         self.name = name
         self.topic = topic
         self.timeout = timeout
+        self.dynamic = dynamic
         self.options: dict[str, Any] = options
-        self.logger = get_logger(__name__, f"{service_name}:{self.name}")
+        self.logger = get_logger(__name__, self.full_name)
+
+    @property
+    def full_name(self):
+        return f"{self.service_name}:{self.name}"
+
+    def validate_message(self, message: Any) -> T:
+        return self.event_type.parse_obj(message)
 
     @abstractmethod
-    async def process(self, message: EventT):
+    async def process(self, message: CloudEvent):
         raise NotImplementedError
 
 
-class Consumer(BaseConsumer[EventT]):
+class Consumer(AbstractConsumer):
     def __init__(
         self,
         *,
         service_name: str,
-        name: str | None = None,
         topic: str,
-        fn: HandlerT,
-        concurrency: int = 10,
+        name: str | None,
+        dynamic: bool = False,
+        fn: FT,
         **options: Any,
-    ):
+    ) -> None:
         super().__init__(
-            service_name=service_name, name=name or fn.__name__, topic=topic, **options
+            service_name=service_name,
+            name=name or fn.__name__,
+            topic=topic,
+            dynamic=dynamic,
+            **options,
         )
         event_type = get_type_hints(fn).get("message")
         assert event_type, f"Unable to resolve type hint for 'message' in {fn.__name__}"
-        self.event_type = cast(EventT, event_type)
+        self.event_type = event_type
         if not asyncio.iscoroutinefunction(fn):
             fn = run_async(fn)
         self.fn = fn
-        self.concurrency = concurrency
-        self._sem = asyncio.Semaphore(self.concurrency)
 
-    async def process(self, message: EventT):
-        async with self._sem:
-            # TODO: add timeout async with async_timeout.timeout(self.timeout):
-            self.logger.info(f"Processing message {message.id}")
-            result = await self.fn(message)
-            self.logger.info(f"Finished processing {message.id}")
-            return result
+    async def process(self, message: CloudEvent) -> Any | None:
+        self.logger.info(f"Processing message {message.id}")
+        result = await self.fn(message)
+        self.logger.info(f"Finished processing {message.id}")
+        return result
 
 
-class GenericConsumer(BaseConsumer[EventT], ABC):
-    def __init__(self, *, service_name: str, name: str, topic: str, **options: Any):
-        super().__init__(service_name=service_name, name=name, topic=topic, **options)
+class GenericConsumer(AbstractConsumer, ABC):
+    name: str
+
+    def __init_subclass__(cls, **kwargs):
+        if not asyncio.iscoroutinefunction(cls.process):
+            cls.process = run_async(cls.process)
+
+    def __init__(
+        self,
+        *,
+        service_name: str,
+        topic: str,
+        dynamic: bool = False,
+        **options: Any,
+    ) -> None:
+        super().__init__(
+            service_name=service_name,
+            topic=topic,
+            name=getattr(self, "name", type(self).__name__),
+            dynamic=dynamic,
+            **options,
+        )
 
         event_type = get_type_hints(self.process).get("message")
         assert event_type, "Unable to resolve type hint for 'message' in .process()"
-        self.event_type = cast(EventT, event_type)
+        self.event_type = event_type
