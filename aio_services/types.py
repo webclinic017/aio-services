@@ -6,7 +6,6 @@ from typing import (
     Awaitable,
     Callable,
     Optional,
-    Protocol,
     Type,
     TypeVar,
     Union,
@@ -14,6 +13,7 @@ from typing import (
 from uuid import UUID
 
 from pydantic import BaseModel
+from typing_extensions import Protocol
 
 if TYPE_CHECKING:
     from aio_services.consumer import GenericConsumer
