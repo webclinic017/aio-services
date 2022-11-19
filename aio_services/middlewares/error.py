@@ -4,10 +4,12 @@ import asyncio
 from typing import TYPE_CHECKING, Any
 
 from aio_services.middleware import Middleware
-from aio_services.utils.asyncio import run_async
+from aio_services.utils.functools import run_async
 
 if TYPE_CHECKING:
-    from aio_services.types import AbstractIncomingMessage, BrokerT, ConsumerP
+    from aio_services.broker import Broker
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
 
 
 class ErrorHandlerMiddleware(Middleware):
@@ -19,9 +21,9 @@ class ErrorHandlerMiddleware(Middleware):
 
     async def after_process_message(
         self,
-        broker: BrokerT,
-        consumer: ConsumerP,
-        message: AbstractIncomingMessage,
+        broker: Broker,
+        consumer: Consumer,
+        message: CloudEvent,
         result: Any | None = None,
         exc: Exception | None = None,
     ):

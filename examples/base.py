@@ -1,11 +1,11 @@
 import asyncio
 from aio_services import Service, CloudEvent
 from aio_services import Middleware
-from aio_services.brokers.kafka import KafkaBroker
-from aio_services.brokers.nats.broker import JetStreamBroker, NatsBroker
-from aio_services.brokers.rabbitmq import RabbitmqBroker
+from aio_services.backends.kafka import KafkaBroker
+from aio_services.backends.nats.broker import JetStreamBroker, NatsBroker
+from aio_services.backends.rabbitmq import RabbitmqBroker
 
-BROKERS = {
+backends = {
     "rabbitmq": RabbitmqBroker(url="amqp://rabbitmq:rabbitmq@localhost:5672/"),
     "kafka": KafkaBroker(bootstrap_servers="localhost:9092"),
     "nats": NatsBroker(url="nats://localhost:4222"),
@@ -14,7 +14,7 @@ BROKERS = {
 
 BROKER_TYPE = "rabbitmq"
 
-broker = BROKERS[BROKER_TYPE]
+broker = backends[BROKER_TYPE]
 
 
 service = Service(name="example-service", broker=broker)

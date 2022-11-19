@@ -5,15 +5,17 @@ from typing import TYPE_CHECKING, Any
 
 import aiokafka
 
-from aio_services.broker import BaseBroker
+from aio_services.broker import Broker
 from aio_services.exceptions import BrokerError
 from aio_services.middleware import Middleware
 
 if TYPE_CHECKING:
-    from aio_services.types import AbstractMessage, ConsumerP, Encoder
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
+    from aio_services.types import Encoder
 
 
-class KafkaBroker(BaseBroker[aiokafka.ConsumerRecord]):
+class KafkaBroker(Broker[aiokafka.ConsumerRecord]):
     def __init__(
         self,
         *,
@@ -35,7 +37,7 @@ class KafkaBroker(BaseBroker[aiokafka.ConsumerRecord]):
     def is_connected(self) -> bool:
         return True
 
-    async def _start_consumer(self, consumer: ConsumerP):
+    async def _start_consumer(self, consumer: Consumer):
         handler = self.get_handler(consumer)
         subscriber = aiokafka.AIOKafkaConsumer(
             consumer.topic,
@@ -44,20 +46,17 @@ class KafkaBroker(BaseBroker[aiokafka.ConsumerRecord]):
             enable_auto_commit=False,
         )
         await subscriber.start()
-        while self._is_connected:
+        while self._stopped:
             result = await subscriber.getmany(
                 timeout_ms=consumer.options.get("timeout_ms", 600)
             )
             for tp, messages in result.items():
 
                 if messages:
-                    tasks = [
-                        asyncio.create_task(handler(message)) for message in messages
+                    tasks: list[asyncio.Task] = [
+                        asyncio.create_task(handler(message)) for message in messages  # type: ignore
                     ]
-                    res = await asyncio.gather(*tasks, return_exceptions=True)
-                    for r in filter(lambda e: isinstance(e, Exception), res):
-                        print(r)
-
+                    await asyncio.gather(*tasks, return_exceptions=True)
                     await subscriber.commit({tp: messages[-1].offset + 1})
 
     async def _disconnect(self):
@@ -78,7 +77,7 @@ class KafkaBroker(BaseBroker[aiokafka.ConsumerRecord]):
 
     async def _publish(
         self,
-        message: AbstractMessage,
+        message: CloudEvent,
         key: Any | None = None,
         partition: Any | None = None,
         headers: dict[str, str] | None = None,

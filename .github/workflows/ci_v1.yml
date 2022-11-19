@@ -14,6 +14,7 @@ jobs:
       - run: poetry install -E all
       - run: poetry run flake8 ./aio_services
       - run: poetry run black --check ./aio_services
+      - run: poetry run mypy ./aio_services
 
   build-unix:
     timeout-minutes: 30

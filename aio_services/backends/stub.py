@@ -5,17 +5,13 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from aio_services.broker import BaseBroker
+from aio_services.broker import Broker
 from aio_services.middleware import Middleware
 
 if TYPE_CHECKING:
-    from aio_services.types import (
-        AbstractIncomingMessage,
-        AbstractMessage,
-        ConsumerP,
-        Encoder,
-        T,
-    )
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
+    from aio_services.types import Encoder
 
 
 @dataclass
@@ -24,7 +20,7 @@ class Message:
     queue: asyncio.Queue | None = None
 
 
-class StubBroker(BaseBroker[Message]):
+class StubBroker(Broker[Message]):
     def __init__(
         self,
         *,
@@ -42,7 +38,7 @@ class StubBroker(BaseBroker[Message]):
     async def _disconnect(self) -> None:
         self._stopped = True
 
-    async def _start_consumer(self, consumer: ConsumerP):
+    async def _start_consumer(self, consumer: Consumer):
         queue = self.topics[consumer.topic]
         handler = self.get_handler(consumer)
         while not self._stopped:
@@ -52,18 +48,16 @@ class StubBroker(BaseBroker[Message]):
     async def _connect(self) -> None:
         pass
 
-    async def _publish(self, message: AbstractMessage, **_) -> None:
+    async def _publish(self, message: CloudEvent, **_) -> None:
         queue = self.topics[message.topic]
         data = self.encoder.encode(message.dict())
         msg = Message(data=data, queue=queue)
         await queue.put(msg)
 
-    async def _ack(self, message: AbstractIncomingMessage[T, Message]) -> None:
+    async def _ack(self, message: CloudEvent) -> None:
         message.raw.queue.task_done()
 
-    async def _nack(
-        self, message: AbstractIncomingMessage[T, Message], delay: int | None = None
-    ) -> None:
+    async def _nack(self, message: CloudEvent, delay: int | None = None) -> None:
 
         if delay:
             await asyncio.sleep(delay)

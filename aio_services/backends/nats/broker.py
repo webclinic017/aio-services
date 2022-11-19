@@ -7,22 +7,18 @@ import nats
 from nats.aio.msg import Msg as NatsMsg
 from nats.js import JetStreamContext
 
-from aio_services.broker import BaseBroker
+from aio_services.broker import Broker
 from aio_services.exceptions import BrokerError
-from aio_services.utils.asyncio import retry_async
+from aio_services.utils.functools import retry_async
 
 if TYPE_CHECKING:
+    from aio_services.consumer import Consumer
     from aio_services.middleware import Middleware
-    from aio_services.types import (
-        AbstractIncomingMessage,
-        AbstractMessage,
-        ConsumerP,
-        Encoder,
-        T,
-    )
+    from aio_services.models import CloudEvent
+    from aio_services.types import Encoder
 
 
-class NatsBroker(BaseBroker[NatsMsg]):
+class NatsBroker(Broker[NatsMsg]):
     def __init__(
         self,
         *,
@@ -46,7 +42,7 @@ class NatsBroker(BaseBroker[NatsMsg]):
     def parse_incoming_message(self, message: NatsMsg) -> Any:
         return self.encoder.decode(message.data)
 
-    async def _start_consumer(self, consumer: ConsumerP) -> None:
+    async def _start_consumer(self, consumer: Consumer) -> None:
 
         await self.nc.subscribe(
             subject=consumer.topic,
@@ -55,15 +51,14 @@ class NatsBroker(BaseBroker[NatsMsg]):
         )
 
     async def _disconnect(self) -> None:
-        if self._nc:
-            print("In disconnect")
+        if self._nc is not None:
             await self._nc.close()
 
     async def _connect(self) -> None:
         self._nc = await nats.connect(self.url, **self.connection_options)
 
     @retry_async(max_retries=3)
-    async def _publish(self, message: AbstractMessage, **kwargs) -> None:
+    async def _publish(self, message: CloudEvent, **kwargs) -> None:
         data = self.encoder.encode(message.dict())
         await self.nc.publish(message.topic, data, **kwargs)
 
@@ -78,7 +73,7 @@ class JetStreamBroker(NatsBroker):
         *,
         url: str,
         encoder: Encoder | None = None,
-        middlewares: Middleware | None = None,
+        middlewares: list[Middleware] | None = None,
         prefetch_count: int = 10,
         fetch_timeout: int = 10,
         **options: Any,
@@ -101,7 +96,7 @@ class JetStreamBroker(NatsBroker):
     @retry_async(max_retries=3)
     async def _publish(
         self,
-        message: AbstractMessage,
+        message: CloudEvent,
         timeout: float | None = None,
         stream: str | None = None,
         headers: dict[str, str] | None = None,
@@ -115,7 +110,7 @@ class JetStreamBroker(NatsBroker):
             headers=headers,
         )
 
-    async def _start_consumer(self, consumer: ConsumerP) -> None:
+    async def _start_consumer(self, consumer: Consumer) -> None:
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic,
             durable=consumer.full_name,
@@ -123,9 +118,8 @@ class JetStreamBroker(NatsBroker):
         )
         handler = self.get_handler(consumer)
         try:
-            while self._is_connected:
+            while not self._stopped:
                 try:
-                    print("In while True _start_consumer")
                     messages = await subscription.fetch(
                         batch=consumer.options.get(
                             "prefetch_count", self.prefetch_count
@@ -144,12 +138,10 @@ class JetStreamBroker(NatsBroker):
             if consumer.dynamic:
                 await subscription.unsubscribe()
 
-    async def _ack(self, message: AbstractIncomingMessage[T, NatsMsg]) -> None:
+    async def _ack(self, message: CloudEvent) -> None:
         if not message.raw._ackd:
             await message.raw.ack()
 
-    async def _nack(
-        self, message: AbstractIncomingMessage[T, NatsMsg], delay=None
-    ) -> None:
+    async def _nack(self, message: CloudEvent, delay=None) -> None:
         if not message.raw._ackd:
             await message.raw.nak(delay=delay)

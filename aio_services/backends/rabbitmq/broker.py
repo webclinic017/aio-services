@@ -5,19 +5,16 @@ from typing import TYPE_CHECKING, Any
 
 import aio_pika
 
-from aio_services.broker import BaseBroker
+from aio_services.broker import Broker
 from aio_services.middleware import Middleware
 
 if TYPE_CHECKING:
-    from aio_services.types import (
-        AbstractIncomingMessage,
-        AbstractMessage,
-        ConsumerP,
-        Encoder,
-    )
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
+    from aio_services.types import Encoder
 
 
-class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
+class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
     def __init__(
         self,
         *,
@@ -36,7 +33,7 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
         self.exchange_name = exchange_name
         self._connection = None
         self._exchange = None
-        self._channels = []
+        self._channels: list[aio_pika.abc.AbstractRobustChannel] = []
 
     async def _disconnect(self) -> None:
         await asyncio.gather(
@@ -44,7 +41,7 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
         )
         await self.connection.close()
 
-    async def _start_consumer(self, consumer: ConsumerP) -> None:
+    async def _start_consumer(self, consumer: Consumer) -> None:
         channel = await self.connection.channel()
         await channel.set_qos(
             prefetch_count=consumer.options.get("prefetch_count", self.prefetch_count)
@@ -64,14 +61,18 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
     def connection(self) -> aio_pika.RobustConnection:
         return self._connection
 
+    @property
+    def exchange(self) -> aio_pika.abc.AbstractRobustExchange:
+        return self._exchange
+
     async def _connect(self) -> None:
         self._connection = await aio_pika.connect_robust(self.url, **self.options)
-        channel = await self._connection.channel()
+        channel = await self.connection.channel()
         self._exchange = await channel.declare_exchange(
             name=self.exchange_name, type=aio_pika.ExchangeType.TOPIC, durable=True
         )
 
-    async def _publish(self, message: AbstractMessage, **kwargs) -> None:
+    async def _publish(self, message: CloudEvent, **kwargs) -> None:
         body = self.encoder.encode(message.data)
         headers = kwargs.pop("headers", {})
         headers.setdefault("X-Trace-ID", str(message.trace_id))
@@ -88,14 +89,12 @@ class RabbitmqBroker(BaseBroker[aio_pika.abc.AbstractIncomingMessage]):
             delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
 
-        await self._exchange.publish(msg, routing_key=message.topic, **kwargs)
+        await self.exchange.publish(msg, routing_key=message.topic, **kwargs)
 
-    async def _ack(self, message: AbstractIncomingMessage) -> None:
+    async def _ack(self, message: CloudEvent) -> None:
         await message.raw.ack()
 
-    async def _nack(
-        self, message: AbstractIncomingMessage, delay: int | None = None
-    ) -> None:
+    async def _nack(self, message: CloudEvent, delay: int | None = None) -> None:
         # TODO: add delay support via rabbitmq delayed messages plugin
         await message.raw.reject(requeue=True)
 

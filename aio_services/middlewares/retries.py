@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Awaitable, Callable
+from random import uniform
+from typing import TYPE_CHECKING, Any, Awaitable, Callable
 
 from aio_services.exceptions import Retry
 from aio_services.middleware import Middleware
-from aio_services.types import AbstractIncomingMessage, BrokerT, ConsumerP
-from aio_services.utils.functools import compute_backoff
+
+if TYPE_CHECKING:
+    from aio_services.broker import Broker
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
 
 
 @dataclass(frozen=True)
@@ -20,7 +24,7 @@ class RetryConsumerOptions:
     throws: type[Exception] | tuple[type[Exception]] | None = None
 
 
-class RetryMiddleware(Middleware[BrokerT]):
+class RetryMiddleware(Middleware):
     """
     Retry Message Middleware
     """
@@ -30,9 +34,9 @@ class RetryMiddleware(Middleware[BrokerT]):
 
     async def after_process_message(
         self,
-        broker: BrokerT,
-        consumer: ConsumerP,
-        message: AbstractIncomingMessage,
+        broker: Broker,
+        consumer: Consumer,
+        message: CloudEvent,
         result: Any | None = None,
         exc: Exception | None = None,
     ):
@@ -43,7 +47,7 @@ class RetryMiddleware(Middleware[BrokerT]):
         if throws and isinstance(exc, throws):
             return
 
-        retries_so_far = broker.get_num_delivered(message)
+        retries_so_far = 1  # broker.get_num_delivered(message)
         retry_when = consumer.options.get(
             "retry_when", self.default_retry_options.retry_when
         )
@@ -61,7 +65,7 @@ class RetryMiddleware(Middleware[BrokerT]):
         if isinstance(exc, Retry) and exc.delay is not None:
             delay = exc.delay
         else:
-            _, delay = compute_backoff(
+            _, delay = self.compute_backoff(
                 retries_so_far,
                 factor=consumer.options.get(
                     "min_backoff", self.default_retry_options.min_backoff
@@ -73,3 +77,19 @@ class RetryMiddleware(Middleware[BrokerT]):
 
         self.logger.info("Retrying message %r in %d milliseconds.", message.id, delay)
         await broker.nack(consumer, message)
+
+    @staticmethod
+    def compute_backoff(
+        attempts: int,
+        *,
+        factor: int = 5,
+        jitter: bool = True,
+        max_backoff: int = 2000,
+        max_exponent: int = 32,
+    ) -> tuple[int, int]:
+        exponent = min(attempts, max_exponent)
+        backoff = min(factor * 2**exponent, max_backoff)
+        if jitter:
+            backoff /= 2
+            backoff = int(backoff + uniform(0, backoff))  # nosec
+        return attempts + 1, backoff

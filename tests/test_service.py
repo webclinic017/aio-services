@@ -1,7 +1,7 @@
 import asyncio
 
 from aio_services import Service, CloudEvent
-from aio_services.brokers.stub import StubBroker
+from aio_services.backends.stub import StubBroker
 
 
 def test_service(service):

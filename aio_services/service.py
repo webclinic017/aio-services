@@ -1,42 +1,50 @@
 from __future__ import annotations
 
 import asyncio
-from typing import Any, cast
+import inspect
+from typing import TYPE_CHECKING, Any
 
 from aio_services import CloudEvent
 from aio_services.consumer import Consumer, GenericConsumer
 from aio_services.logger import LoggerMixin
-from aio_services.types import BrokerT, ConsumerP, MessageHandlerT
+
+if TYPE_CHECKING:
+    from aio_services.broker import Broker
+    from aio_services.types import MessageHandlerT
 
 
 class Service(LoggerMixin):
-    def __init__(self, name: str, broker: BrokerT):
+    def __init__(self, name: str, broker: Broker):
         self.name = name
         self.broker = broker
-        self.consumers: dict[str, ConsumerP] = {}
+        self.consumers: dict[str, Consumer] = {}
         self._publish_registry: set[type[CloudEvent]] = set()
 
     def subscribe(
         self,
         topic: str,
         name: str | None = None,
-        **options: Any,
+        **extra: Any,
     ):
         def wrapper(func_or_cls: MessageHandlerT) -> MessageHandlerT:
-            kwargs = {"service_name": self.name, "topic": topic}
             if callable(func_or_cls):
-                clazz = Consumer
-                kwargs.update({"fn": func_or_cls, "name": name or func_or_cls.__name__})
-            elif issubclass(func_or_cls, GenericConsumer):
-                clazz = func_or_cls
-            else:
-                raise TypeError(
-                    f"Unknown handler type, expected one of <Callable, GenericConsumer> got {func_or_cls}"
+                consumer = Consumer(
+                    service_name=self.name,
+                    topic=topic,
+                    name=name,
+                    fn=func_or_cls,  # type: ignore
+                    **extra,
                 )
-            consumer = clazz(**kwargs, **options)
-            self.consumers[consumer.name] = cast(
-                ConsumerP, consumer
-            )  # this shouldn't be cast ?
+            elif inspect.isclass(func_or_cls) and issubclass(
+                func_or_cls, GenericConsumer
+            ):
+                consumer = func_or_cls(
+                    service_name=self.name, topic=topic, name=name, **extra
+                )
+            else:
+                raise TypeError("Expected function or generic consumer")
+
+            self.consumers[consumer.name] = consumer
             return func_or_cls
 
         return wrapper
@@ -68,8 +76,6 @@ class Service(LoggerMixin):
 
 
 class ServiceGroup:
-    # TODO: inherit from user list
-
     def __init__(self, services: list[Service] | None = None):
         self.services = services or []
 

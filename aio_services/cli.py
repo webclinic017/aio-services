@@ -8,15 +8,8 @@ import click
 
 from aio_services.service import Service, ServiceGroup
 
-try:
-    import uvloop
 
-    uvloop.install()
-except ImportError:
-    uvloop = None
-
-
-def _import_service(path: str) -> Service | ServiceGroup | None:
+def _import_service(path: str) -> Service | ServiceGroup:
     module_name, _, service_name = path.partition(":")
     try:
         module = importlib.import_module(module_name)
@@ -28,7 +21,7 @@ def _import_service(path: str) -> Service | ServiceGroup | None:
     except (AttributeError, ImportError) as e:
         click.echo(f"Service {service_name} not found in module {module_name}")
         click.echo(e)
-        return None
+        raise SystemExit(1)
 
 
 @click.group()
@@ -39,12 +32,15 @@ def cli() -> None:
 @cli.command(help="Run service")
 @click.argument("service")
 @click.option("--log-level", default="info")
-def run(service: str, log_level: str) -> None:
+@click.option("--use-uvloop", default="false")
+def run(service: str, log_level: str, use_uvloop: str) -> None:
     click.echo(f"Running service [{service}]...")
     logging.basicConfig(level=log_level.upper())
-    service = _import_service(service)
-    if service:
-        aiorun.run(service.start(), shutdown_callback=service.stop)
+    svc = _import_service(service)
+    if svc:
+        aiorun.run(
+            svc.start(), shutdown_callback=svc.stop, use_uvloop=(use_uvloop == "true")
+        )
 
 
 @cli.command()

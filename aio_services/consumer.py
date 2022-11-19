@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
-from typing import Any, Generic, cast, get_type_hints
+from typing import TYPE_CHECKING, Any, Generic, get_type_hints
 
 from aio_services.logger import get_logger
-from aio_services.types import FT, IncomingMessage, Response, T
-from aio_services.utils.asyncio import run_async
+from aio_services.types import FT, T
+from aio_services.utils.functools import run_async
+
+if TYPE_CHECKING:
+    from aio_services.models import CloudEvent
 
 
-class AbstractConsumer(ABC, Generic[IncomingMessage, T]):
+class AbstractConsumer(ABC, Generic[T]):
     event_type: T
 
     def __init__(
@@ -19,7 +22,6 @@ class AbstractConsumer(ABC, Generic[IncomingMessage, T]):
         name: str,
         topic: str,
         timeout: int = 120,
-        response: Response | None = None,
         dynamic: bool = False,
         **options: Any,
     ):
@@ -27,7 +29,6 @@ class AbstractConsumer(ABC, Generic[IncomingMessage, T]):
         self.name = name
         self.topic = topic
         self.timeout = timeout
-        self.response = response
         self.dynamic = dynamic
         self.options: dict[str, Any] = options
         self.logger = get_logger(__name__, self.full_name)
@@ -40,7 +41,7 @@ class AbstractConsumer(ABC, Generic[IncomingMessage, T]):
         return self.event_type.parse_obj(message)
 
     @abstractmethod
-    async def process(self, message: IncomingMessage):
+    async def process(self, message: CloudEvent):
         raise NotImplementedError
 
 
@@ -49,18 +50,16 @@ class Consumer(AbstractConsumer):
         self,
         *,
         service_name: str,
-        name: str,
         topic: str,
-        response: Response | None = None,
+        name: str | None,
         dynamic: bool = False,
         fn: FT,
         **options: Any,
     ) -> None:
         super().__init__(
             service_name=service_name,
-            name=name,
+            name=name or fn.__name__,
             topic=topic,
-            response=response,
             dynamic=dynamic,
             **options,
         )
@@ -71,7 +70,7 @@ class Consumer(AbstractConsumer):
             fn = run_async(fn)
         self.fn = fn
 
-    async def process(self, message: IncomingMessage) -> Any | None:
+    async def process(self, message: CloudEvent) -> Any | None:
         self.logger.info(f"Processing message {message.id}")
         result = await self.fn(message)
         self.logger.info(f"Finished processing {message.id}")
@@ -79,7 +78,7 @@ class Consumer(AbstractConsumer):
 
 
 class GenericConsumer(AbstractConsumer, ABC):
-    name: str | None = None
+    name: str
 
     def __init_subclass__(cls, **kwargs):
         if not asyncio.iscoroutinefunction(cls.process):
@@ -90,19 +89,17 @@ class GenericConsumer(AbstractConsumer, ABC):
         *,
         service_name: str,
         topic: str,
-        response: Response | None = None,
         dynamic: bool = False,
         **options: Any,
     ) -> None:
         super().__init__(
             service_name=service_name,
             topic=topic,
-            name=self.name or type(self).__name__,
-            response=response,
+            name=getattr(self, "name", type(self).__name__),
             dynamic=dynamic,
             **options,
         )
 
         event_type = get_type_hints(self.process).get("message")
         assert event_type, "Unable to resolve type hint for 'message' in .process()"
-        self.event_type = cast(IncomingMessage, event_type)
+        self.event_type = event_type

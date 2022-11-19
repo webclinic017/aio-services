@@ -1,26 +1,25 @@
 from datetime import datetime
-from typing import Any, Optional, Union
-from uuid import UUID, uuid4
+from typing import Any, Generic, Optional
+from uuid import uuid4
 
 from pydantic import BaseModel, Extra, Field
 from pydantic.fields import ModelField
 
-from aio_services.types import RawMessage
+from aio_services.types import RawMessage, T, UUIDStr
 from aio_services.utils.datetime import utc_now
 
-UUIDStr = Union[UUID, str]
 
-
-class CloudEvent(BaseModel):
+class CloudEvent(BaseModel, Generic[T, RawMessage]):
     version: Optional[str] = "1.0"
     content_type: str = Field("application/json", alias="datacontenttype")
     id: UUIDStr = Field(default_factory=uuid4)
-    trace_id: Optional[UUIDStr] = Field(default_factory=uuid4, alias="traceid")
+    trace_id: UUIDStr = Field(default_factory=uuid4, alias="traceid")
+    time: datetime = Field(default_factory=utc_now)
+
     topic: str = Field(..., alias="subject")
     type: Optional[str] = None
     source: Optional[str] = None
     data: Optional[Any] = None
-    time: datetime = Field(default_factory=utc_now)
 
     _raw: Optional[RawMessage] = None
 

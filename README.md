@@ -1,6 +1,6 @@
 # aio-services
 
-*Event driven micro-framework for python*
+*Event driven microservice framework for python*
 
 ## About
 
@@ -49,8 +49,8 @@ or web server like gunicorn.
 
 - Automatic [Async Api](https://www.asyncapi.com/) docs generation from service definition.
 - More tests
-  - Integration tests with docker-compose and all brokers
+  - Integration tests with docker-compose and all backends
 - [OpenTelemetry](https://opentelemetry.io/) Middleware
-- More brokers (zeromq, pulsar, solace?)
+- More backends (zeromq, pulsar, solace?)
 - Pluggable logger interface (for third party integrations)
 - Docs + tutorials

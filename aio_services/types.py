@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime
 from typing import (
     TYPE_CHECKING,
     Any,
     Awaitable,
     Callable,
-    Generic,
     Optional,
     Protocol,
     Type,
@@ -16,14 +13,17 @@ from typing import (
 )
 from uuid import UUID
 
+from pydantic import BaseModel
+
 if TYPE_CHECKING:
-    from aio_services.broker import BaseBroker
+    from aio_services.consumer import GenericConsumer
+    from aio_services.models import CloudEvent
 
-
-BrokerT = TypeVar("BrokerT", bound="BaseBroker")
+UUIDStr = Union[UUID, str]
 
 RawMessage = TypeVar("RawMessage")
-T = TypeVar("T")
+
+T = TypeVar("T", bound=BaseModel)
 
 
 class Encoder(Protocol):
@@ -36,54 +36,7 @@ class Encoder(Protocol):
         ...
 
 
-class AbstractMessage(Protocol[T]):
-    version: str
-    content_type: str
-    id: UUID | str
-    trace_id: UUID | str
-    topic: str
-    type: str
-    source: str | None
-    data: T
-    time: datetime
+FT = Callable[["CloudEvent"], Awaitable[Optional[Any]]]
+MessageHandlerT = Union[Type["GenericConsumer"], FT]
 
-    def dict(self, **kwargs) -> dict[str, Any]:
-        ...
-
-
-class AbstractIncomingMessage(AbstractMessage[T], Generic[T, RawMessage]):
-    raw: RawMessage
-
-
-IncomingMessage = TypeVar("IncomingMessage", bound=AbstractIncomingMessage)
-
-
-@dataclass
-class Response:
-    topic: str
-    type: str = "CloudEvent"
-
-
-class ConsumerP(Protocol[IncomingMessage, T]):
-    name: str
-    service_name: str
-    topic: str
-    event_type: T
-    timeout: int | float
-    response: Response | None
-    dynamic: bool
-    options: dict[str, Any]
-
-    full_name: str  # qualname?
-
-    async def process(self, message: AbstractIncomingMessage[T, RawMessage]):
-        ...
-
-    def validate_message(self, data: Any) -> T:
-        ...
-
-
-FT = Callable[[AbstractIncomingMessage], Awaitable[Optional[Any]]]
-MessageHandlerT = Union[Type[ConsumerP], FT]
-
-ExcHandler = Callable[[AbstractIncomingMessage, Exception], Awaitable]
+ExcHandler = Callable[["CloudEvent", Exception], Awaitable]

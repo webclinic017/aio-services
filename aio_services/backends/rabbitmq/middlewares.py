@@ -4,7 +4,7 @@
 #
 # from aio_pika import ExchangeType
 #
-# from aio_services.brokers.rabbitmq.broker import RabbitmqBroker
+# from aio_services.backends.rabbitmq.broker import RabbitmqBroker
 # from aio_services.middleware import Middleware
 #
 # if TYPE_CHECKING:

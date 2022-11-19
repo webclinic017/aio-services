@@ -6,29 +6,33 @@ from aio_services.middlewares.healthcheck import HealthCheckMiddleware
 
 if TYPE_CHECKING:
 
-    from starlette.applications import Starlette
-    from starlette.responses import JSONResponse
+    from fastapi import FastAPI
 
     from aio_services import Service
 
 
-def register_service(
+def include_service(
+    app: FastAPI,
     service: Service,
-    app: Starlette,
     add_health_endpoint: bool = False,
-    endpoint: str = "/healthz",
-    response_class=JSONResponse,
+    path: str = "/healthz",
+    response_class=None,
 ) -> None:
     app.on_event("startup")(service.start)
     app.on_event("shutdown")(service.stop)
 
     if add_health_endpoint:
+        if response_class is None:
+            from fastapi.responses import JSONResponse
+
+            response_class = JSONResponse
+
         for m in service.broker.middlewares:
             if isinstance(m, HealthCheckMiddleware):
 
                 async def _get_health_status():
                     """Return get broker connection status"""
-                    status = m.get_health_status()
+                    status = await m.get_health_status()
                     return (
                         response_class({"status": "ok"})
                         if status
@@ -37,4 +41,6 @@ def register_service(
                         )
                     )
 
-                app.add_route(path=endpoint, methods=["GET"], route=_get_health_status)
+                app.add_api_route(
+                    path=path, endpoint=_get_health_status, methods=["GET"]
+                )

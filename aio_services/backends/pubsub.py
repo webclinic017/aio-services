@@ -10,16 +10,18 @@ from gcloud.aio.pubsub import (
     subscribe,
 )
 
-from aio_services.broker import BaseBroker
+from aio_services.broker import Broker
 from aio_services.exceptions import BrokerError
 from aio_services.middleware import Middleware
-from aio_services.utils.asyncio import retry_async
+from aio_services.utils.functools import retry_async
 
 if TYPE_CHECKING:
-    from aio_services.types import AbstractMessage, ConsumerP, Encoder
+    from aio_services.consumer import Consumer
+    from aio_services.models import CloudEvent
+    from aio_services.types import Encoder
 
 
-class PubSubBroker(BaseBroker[SubscriberMessage]):
+class PubSubBroker(Broker[SubscriberMessage]):
     def __init__(
         self,
         *,
@@ -38,7 +40,7 @@ class PubSubBroker(BaseBroker[SubscriberMessage]):
     async def _disconnect(self) -> None:
         await self.client.close()
 
-    async def _start_consumer(self, consumer: ConsumerP) -> None:
+    async def _start_consumer(self, consumer: Consumer) -> None:
         consumer_client = SubscriberClient(service_file=self.service_file)
         handler = self.get_handler(consumer)
         await subscribe(
@@ -57,7 +59,7 @@ class PubSubBroker(BaseBroker[SubscriberMessage]):
     @retry_async(max_retries=3)
     async def _publish(
         self,
-        message: AbstractMessage,
+        message: CloudEvent,
         timeout: int = 10,
         ordering_key: str | None = None,
         **kwargs,

@@ -5,7 +5,7 @@ import pytest
 import pytest_asyncio
 
 from aio_services import Service, CloudEvent, GenericConsumer
-from aio_services.brokers.stub import StubBroker
+from aio_services.backends.stub import StubBroker
 from aio_services.middleware import Middleware
 
 

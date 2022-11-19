@@ -1,10 +1,14 @@
+from __future__ import annotations
+
 import asyncio
 import os
 from pathlib import Path
-from typing import Awaitable, Callable, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Callable, Sequence
 
 from aio_services.middleware import Middleware
-from aio_services.types import BrokerT
+
+if TYPE_CHECKING:
+    from aio_services.broker import Broker
 
 
 class HealthCheckMiddleware(Middleware):
@@ -16,21 +20,21 @@ class HealthCheckMiddleware(Middleware):
         self,
         interval: int = 30,
         file_mode: bool = False,
-        checkers: Optional[Sequence[Callable[..., Awaitable[bool]]]] = None,
+        checkers: Sequence[Callable[..., Awaitable[bool]]] | None = None,
     ):
         self.interval = interval  # 30s by default
         self.file_mode = file_mode
         self._checkers = checkers
-        self._broker = None
-        self._task = None
+        self._broker: Broker | None = None
+        self._task: asyncio.Task | None = None
 
-    async def after_broker_connect(self, broker: BrokerT):
+    async def after_broker_connect(self, broker: Broker):
         self._broker = broker
         if self.file_mode:
             self._task = asyncio.create_task(self._run_forever())
 
-    async def before_broker_disconnect(self, broker: BrokerT):
-        if self.file_mode:
+    async def before_broker_disconnect(self, broker: Broker):
+        if self.file_mode and self._task:
             self._task.cancel()
             await self._task
 
@@ -48,4 +52,6 @@ class HealthCheckMiddleware(Middleware):
             pass
 
     async def get_health_status(self) -> bool:
-        return self._broker.is_connected
+        if self._broker:
+            return self._broker.is_connected
+        return False
