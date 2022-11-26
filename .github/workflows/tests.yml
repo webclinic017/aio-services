@@ -36,5 +36,5 @@ jobs:
       - run: poetry install -E all
       - run: poetry run pytest --cov=./aio_services -v ./tests
       - name: upload codecov
-        if: matrix.python-version == 3.10
+        if: matrix.python == 3.9
         run: bash <(curl -s https://codecov.io/bash)
