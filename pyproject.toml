@@ -1,7 +1,8 @@
 [tool.poetry]
 name = "aio-services"
 version = "0.1.0"
-description = ""
+description = "Event driven microservice framework for python"
+readme = "README.md"
 authors = ["Radzim Kowalow <radzim_ko@wp.pl>"]
 
 [tool.poetry.scripts]
@@ -32,6 +33,7 @@ aioredis = {version = "^2.0.1", optional = true}
 aiokafka = {version = "^0.7.2", optional = true}
 aio-pika = {version = "^8.0.3", optional = true}
 gcloud-aio-pubsub = {version = "^5.0.0", optional = true}
+async-timeout = "^4.0.2"
 
 [tool.poetry.extras]
 all = ["orjson", "aiorun", "click", "prometheus-client", "nats-py",
@@ -67,10 +69,12 @@ isort = "^5.10.1"
 tox = "^3.25.0"
 mkdocs = "^1.2.3"
 mkdocs-material = "^8.2.1"
-mkdocstrings = "^0.18.0"
 bandit = "^1.7.4"
 fastapi = "^0.87.0"
 uvicorn = "^0.19.0"
+mkdocs-autorefs = "^0.4.1"
+mkdocs-gen-files = "^0.4.0"
+mkdocstrings-python = "^0.8.2"
 
 [tool.pytest.ini_options]
 addopts = "--cov=./aio_services"
