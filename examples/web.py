@@ -2,12 +2,12 @@ from typing import Any
 
 from fastapi import FastAPI, Body
 from fastapi.responses import JSONResponse, Response
-from aio_services import Service, CloudEvent
-from aio_services.backends.nats import JetStreamBroker, NatsJetStreamResultMiddleware
+from asvc import Service, CloudEvent
+from asvc.backends.nats import JetStreamBroker, NatsJetStreamResultMiddleware
 
 # from aio_services.backends.stub import StubBroker
-from aio_services.web import include_service
-from aio_services.middlewares import HealthCheckMiddleware
+from asvc.web import include_service
+from asvc.middlewares import HealthCheckMiddleware
 
 broker = JetStreamBroker(url="nats://localhost:4222")
 kv = NatsJetStreamResultMiddleware(bucket="test")

@@ -9,7 +9,7 @@ repos:
     rev: 3.9.2
     hooks:
       - id: flake8
-        args: ["--count", "--max-complexity", "10", "--statistics", "./aio_services"]
+        args: ["--count", "--max-complexity", "10", "--statistics", "./asvc"]
 
   - repo: https://github.com/asottile/yesqa
     rev: v1.2.3
@@ -34,7 +34,7 @@ repos:
         pass_filenames: false
         always_run: true
         entry: isort
-        args: ["./aio_services"]
+        args: ["./asvc"]
 
   - repo: https://github.com/psf/black
     rev: 22.3.0
@@ -46,4 +46,4 @@ repos:
     rev: 1.7.4
     hooks:
     - id: bandit
-      args: ["--skip", "B101", "-r", "./aio_services"]
+      args: ["--skip", "B101", "-r", "./asvc"]

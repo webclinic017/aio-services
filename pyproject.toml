@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "aio-services"
+name = "asvc"
 version = "0.1.0"
 description = "Event driven microservice framework for python"
 readme = "README.md"
 authors = ["Radzim Kowalow <radzim_ko@wp.pl>"]
 
 [tool.poetry.scripts]
-asvc = "aio_services.cli:cli"
+asvc = "asvc.cli:cli"
 
 [tool.poetry.dependencies]
 python = ">=3.7,<4.0"
@@ -77,7 +77,7 @@ mkdocs-gen-files = "^0.4.0"
 mkdocstrings-python = "^0.8.2"
 
 [tool.pytest.ini_options]
-addopts = "--cov=./aio_services"
+addopts = "--cov=./asvc"
 testpaths = [
    "./tests"
 ]

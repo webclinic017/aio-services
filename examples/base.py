@@ -1,7 +1,7 @@
 import asyncio
-from aio_services import Service, CloudEvent
-from aio_services import Middleware
-from aio_services.backends.nats.broker import JetStreamBroker
+from asvc import Service, CloudEvent
+from asvc import Middleware
+from asvc.backends.nats.broker import JetStreamBroker
 
 
 broker = JetStreamBroker(url="nats://localhost:4222")

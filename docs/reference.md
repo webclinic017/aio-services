@@ -1,4 +1,4 @@
-::: aio_services.broker.Broker
+::: asvc.broker.Broker
     handler: python
     options:
       members:
@@ -7,7 +7,7 @@
       show_root_heading: true
       show_source: false
 
-::: aio_services.service.Service
+::: asvc.service.Service
     handler: python
     options:
       members:
@@ -16,13 +16,13 @@
       show_root_heading: true
       show_source: false
 
-::: aio_services.middleware.Middleware
+::: asvc.middleware.Middleware
     handler: python
     options:
       show_root_heading: true
       show_source: false
 
-::: aio_services.consumer.Consumer
+::: asvc.consumer.Consumer
     handler: python
     options:
       members:
@@ -30,7 +30,7 @@
       show_root_heading: true
       show_source: false
 
-::: aio_services.consumer.GenericConsumer
+::: asvc.consumer.GenericConsumer
     handler: python
     options:
       members:
