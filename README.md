@@ -1,7 +1,7 @@
 # aio-services
 ![Tests](https://github.com/RaRhAeu/aio-services/workflows/tests/badge.svg)
 ![Build](https://github.com/RaRhAeu/aio-services/workflows/release/badge.svg)
-![Code Coverage](https://codecov.io/gh/RaRhAeu/aio-services/branch/master/graph/badge.svg)
+![Code Coverage](https://codecov.io/gh/RaRhAeu/aio-services/branch/main/graph/badge.svg)
 ![License](https://img.shields.io/github/license/RaRhAeu/aio-services)
 ![Python](https://img.shields.io/pypi/pyversions/aio-services)
 ![Format](https://img.shields.io/pypi/format/aio-services)
