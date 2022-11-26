@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Generic, get_type_hints
 
 from aio_services.logger import get_logger
@@ -10,6 +11,12 @@ from aio_services.utils.functools import run_async
 
 if TYPE_CHECKING:
     from aio_services.models import CloudEvent
+
+
+@dataclass
+class ForwardResponse:
+    topic: str
+    as_type: str = "CloudEvent"
 
 
 class AbstractConsumer(ABC, Generic[T]):
@@ -23,6 +30,7 @@ class AbstractConsumer(ABC, Generic[T]):
         topic: str,
         timeout: int = 120,
         dynamic: bool = False,
+        forward_response: ForwardResponse | None = None,
         **options: Any,
     ):
         self.service_name = service_name
@@ -30,6 +38,7 @@ class AbstractConsumer(ABC, Generic[T]):
         self.topic = topic
         self.timeout = timeout
         self.dynamic = dynamic
+        self.forward_response = forward_response
         self.options: dict[str, Any] = options
         self.logger = get_logger(__name__, self.full_name)
 
@@ -49,20 +58,10 @@ class Consumer(AbstractConsumer):
     def __init__(
         self,
         *,
-        service_name: str,
-        topic: str,
-        name: str | None,
-        dynamic: bool = False,
         fn: FT,
-        **options: Any,
+        **extra: Any,
     ) -> None:
-        super().__init__(
-            service_name=service_name,
-            name=name or fn.__name__,
-            topic=topic,
-            dynamic=dynamic,
-            **options,
-        )
+        super().__init__(**extra)
         event_type = get_type_hints(fn).get("message")
         assert event_type, f"Unable to resolve type hint for 'message' in {fn.__name__}"
         self.event_type = event_type
@@ -81,25 +80,6 @@ class GenericConsumer(AbstractConsumer, ABC):
     name: str
 
     def __init_subclass__(cls, **kwargs):
+        cls.event_type = get_type_hints(cls.process).get("message")
         if not asyncio.iscoroutinefunction(cls.process):
             cls.process = run_async(cls.process)
-
-    def __init__(
-        self,
-        *,
-        service_name: str,
-        topic: str,
-        dynamic: bool = False,
-        **options: Any,
-    ) -> None:
-        super().__init__(
-            service_name=service_name,
-            topic=topic,
-            name=getattr(self, "name", type(self).__name__),
-            dynamic=dynamic,
-            **options,
-        )
-
-        event_type = get_type_hints(self.process).get("message")
-        assert event_type, "Unable to resolve type hint for 'message' in .process()"
-        self.event_type = event_type

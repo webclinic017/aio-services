@@ -31,7 +31,7 @@ class Service(LoggerMixin):
                 consumer = Consumer(
                     service_name=self.name,
                     topic=topic,
-                    name=name,
+                    name=name or func_or_cls.__name__,
                     fn=func_or_cls,  # type: ignore
                     **extra,
                 )
@@ -39,7 +39,10 @@ class Service(LoggerMixin):
                 func_or_cls, GenericConsumer
             ):
                 consumer = func_or_cls(
-                    service_name=self.name, topic=topic, name=name, **extra
+                    service_name=self.name,
+                    topic=topic,
+                    name=name or func_or_cls.name,
+                    **extra,
                 )
             else:
                 raise TypeError("Expected function or generic consumer")
@@ -60,9 +63,13 @@ class Service(LoggerMixin):
         await self.broker.publish_event(message, **kwargs)
 
     async def publish(
-        self, topic: str, data: Any = None, type_: str = "CloudEvent", **kwargs
+        self,
+        topic: str,
+        data: Any | None = None,
+        type_: type[CloudEvent] | str = "CloudEvent",
+        **kwargs,
     ):
-        await self.broker.publish(topic, type_, data, source=self.name, **kwargs)
+        await self.broker.publish(topic, data, type_, source=self.name, **kwargs)
 
     async def start(self) -> None:
         await self.broker.connect()

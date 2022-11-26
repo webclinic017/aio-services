@@ -2,7 +2,7 @@ name: CI
 on: [push, pull_request]
 jobs:
   lint:
-    runs-on: ubuntu-18.04
+    runs-on: ubuntu-20.04
     name: lint
     steps:
       - uses: actions/checkout@master
@@ -15,6 +15,7 @@ jobs:
       - run: poetry run flake8 ./aio_services
       - run: poetry run black --check ./aio_services
       - run: poetry run mypy ./aio_services
+      - run: bash <(curl -s https://codecov.io/bash)
 
   build-unix:
     timeout-minutes: 30

@@ -60,6 +60,7 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         middlewares: list[Middleware] | None = None,
         **options,
     ) -> None:
+        """Base broker class"""
         if encoder is None:
             from aio_services.encoders import get_default_encoder
 
@@ -107,17 +108,20 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
                 return
             try:
                 async with async_timeout.timeout(consumer.timeout):
+                    self.logger.info(
+                        f"Running consumer {consumer.name} with message {message.id}"
+                    )
                     result = await consumer.process(message)
-                # if consumer.response and result is not None:
-                #     await self.publish_event(
-                #         CloudEvent(
-                #             type=consumer.response.type,
-                #             topic=consumer.response.topic,
-                #             data=result,
-                #             trace_id=message.trace_id,
-                #             source=consumer.service_name,
-                #         )
-                #     )
+                if consumer.forward_response and result is not None:
+                    await self.publish_event(
+                        CloudEvent(
+                            type=consumer.forward_response.as_type,
+                            topic=consumer.forward_response.topic,
+                            data=result,
+                            trace_id=message.trace_id,
+                            source=consumer.service_name,
+                        )
+                    )
             # TODO: asyncio.CanceledError handling (?)
             except Reject as e:
                 exc = e
@@ -182,20 +186,19 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
     async def publish(
         self,
         topic: str,
-        type_: type[CloudEvent] | str,
-        data: Any,
-        source: str,
+        data: Any | None = None,
+        type_: type[CloudEvent] | str = "CloudEvent",
+        source: str = "",
         **kwargs,
     ) -> None:
+        """Publish message to broker"""
         if isinstance(type_, str):
             cls = CloudEvent
-            type_name = type_
+            kwargs["type"] = type_
         else:
             cls = type_
-            type_name = None
         message: CloudEvent = cls(
             content_type=self.encoder.CONTENT_TYPE,
-            type=type_name,
             topic=topic,
             data=data,
             source=source,

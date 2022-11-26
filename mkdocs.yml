@@ -1,13 +1,34 @@
 site_name: "Aio Services"
+site_description: aio_services, Event driven microservice framework for Python
 theme:
   name: "material"
-
+  palette:
+  - scheme: default
+    primary: cyan
+    accent: teal
+    toggle:
+      icon: material/toggle-switch
+      name: Switch to dark mode
+  - scheme: slate
+    primary: cyan
+    accent: teal
+    toggle:
+      icon: material/toggle-switch-off-outline
+      name: Switch to light mode
+  features:
+  - search.suggest
+  - search.highlight
+  - content.tabs.link
+repo_name: RaRhAeu/aio-services
+repo_url: https://github.com/RaRhAeu/aio-services
+edit_uri: ''
 nav:
-  - "Index": index.md
-  - "About": about.md
+  - "Aio Services": index.md
+  - "Features": features.md
   - "Usage": usage.md
-  - "API Reference": api_reference.md
+  - "Reference": reference.md
 
 plugins:
   - search
+  - autorefs
   - mkdocstrings
