@@ -1,10 +1,10 @@
 import pytest
 
-from aio_services import CloudEvent
-from aio_services.encoders.json import JsonEncoder
-from aio_services.encoders.orjson import OrjsonEncoder
-from aio_services.encoders.pickle import PickleEncoder
-from aio_services.encoders.msgpack import MsgPackEncoder
+from asvc import CloudEvent
+from asvc.encoders.json import JsonEncoder
+from asvc.encoders.orjson import OrjsonEncoder
+from asvc.encoders.pickle import PickleEncoder
+from asvc.encoders.msgpack import MsgPackEncoder
 
 
 @pytest.mark.parametrize(

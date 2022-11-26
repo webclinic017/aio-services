@@ -1,4 +1,4 @@
-from aio_services import GenericConsumer, CloudEvent
+from asvc import GenericConsumer, CloudEvent
 
 
 class MyConsumer(GenericConsumer):

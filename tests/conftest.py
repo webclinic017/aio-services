@@ -4,9 +4,9 @@ from datetime import date
 import pytest
 import pytest_asyncio
 
-from aio_services import Service, CloudEvent, GenericConsumer
-from aio_services.backends.stub import StubBroker
-from aio_services.middleware import Middleware
+from asvc import Service, CloudEvent, GenericConsumer
+from asvc.backends.stub import StubBroker
+from asvc.middleware import Middleware
 
 
 @pytest_asyncio.fixture(scope="session")
