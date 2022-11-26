@@ -1,11 +1,14 @@
 # aio-services
+![Checks](https://img.shields.io/github/checks-status/RaRhAeu/aio-services/main)
 ![CI](https://github.com/RaRhAeu/aio-services/workflows/CI/badge.svg)
-![Build](https://github.com/RaRhAeu/aio-services/workflows/build/badge.svg)
+![Build](https://github.com/RaRhAeu/aio-services/workflows/Publish/badge.svg)
 ![Code Coverage](https://codecov.io/gh/RaRhAeu/aio-services/branch/main/graph/badge.svg)
 ![License](https://img.shields.io/github/license/RaRhAeu/aio-services)
+![Code Style](https://img.shields.io/badge/code%20style-black-000000.svg)
 ![Python](https://img.shields.io/pypi/pyversions/asvc)
 ![Format](https://img.shields.io/pypi/format/asvc)
-![PyPi Status](https://img.shields.io/pypi/status/asvc)
+![PyPi](https://img.shields.io/pypi/v/asvc)
+[![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 
 *Event driven microservice framework for python*
 
@@ -51,11 +54,10 @@ do not support `asyncio`. This is why this project was born.
 
 
 ```python
-
 import asyncio
-from aio_services import Service, CloudEvent
-from aio_services import Middleware
-from aio_services.backends.nats.broker import JetStreamBroker
+from asvc import Service, CloudEvent
+from asvc import Middleware
+from asvc.backends.nats.broker import JetStreamBroker
 
 
 broker = JetStreamBroker(url="nats://localhost:4222")
