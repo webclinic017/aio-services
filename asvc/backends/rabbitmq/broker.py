@@ -35,6 +35,21 @@ class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
         self._exchange = None
         self._channels: list[aio_pika.abc.AbstractRobustChannel] = []
 
+    @property
+    def connection(self) -> aio_pika.RobustConnection:
+        return self._connection
+
+    @property
+    def exchange(self) -> aio_pika.abc.AbstractRobustExchange:
+        return self._exchange
+
+    async def _connect(self) -> None:
+        self._connection = await aio_pika.connect_robust(self.url, **self.options)
+        channel = await self.connection.channel()
+        self._exchange = await channel.declare_exchange(
+            name=self.exchange_name, type=aio_pika.ExchangeType.TOPIC, durable=True
+        )
+
     async def _disconnect(self) -> None:
         await asyncio.gather(
             *[c.close() for c in self._channels], return_exceptions=True
@@ -56,21 +71,6 @@ class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
         handler = self.get_handler(consumer)
         await queue.consume(handler)
         self._channels.append(channel)
-
-    @property
-    def connection(self) -> aio_pika.RobustConnection:
-        return self._connection
-
-    @property
-    def exchange(self) -> aio_pika.abc.AbstractRobustExchange:
-        return self._exchange
-
-    async def _connect(self) -> None:
-        self._connection = await aio_pika.connect_robust(self.url, **self.options)
-        channel = await self.connection.channel()
-        self._exchange = await channel.declare_exchange(
-            name=self.exchange_name, type=aio_pika.ExchangeType.TOPIC, durable=True
-        )
 
     async def _publish(self, message: CloudEvent, **kwargs) -> None:
         body = self.encoder.encode(message.data)
@@ -95,7 +95,6 @@ class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
         await message.raw.ack()
 
     async def _nack(self, message: CloudEvent, delay: int | None = None) -> None:
-        # TODO: add delay support via rabbitmq delayed messages plugin
         await message.raw.reject(requeue=True)
 
     @property

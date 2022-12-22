@@ -2,22 +2,15 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from asvc.logger import LoggerMixin
+from .logger import LoggerMixin
 
 if TYPE_CHECKING:
-    from asvc.broker import Broker
-    from asvc.consumer import Consumer
-    from asvc.models import CloudEvent
-    from asvc.service import Service
+    from .broker import Broker
+    from .consumer import Consumer
+    from .models import CloudEvent
 
 
 class Middleware(LoggerMixin):
-    async def before_service_start(self, broker: Broker, service: Service) -> None:
-        """Called before service starts"""
-
-    async def after_service_start(self, broker: Broker, service: Service) -> None:
-        """Called after service starts"""
-
     async def before_broker_connect(self, broker: Broker) -> None:
         """Called before broker connects"""
 

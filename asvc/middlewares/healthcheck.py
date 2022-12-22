@@ -43,15 +43,14 @@ class HealthCheckMiddleware(Middleware):
         p.touch(exist_ok=True)
         try:
             while True:
-                is_connected = self._broker.is_connected
-                if not is_connected:
+                if not self.get_health_status():
                     p.rename(os.path.join(self.BASE_DIR, "unhealthy"))
                     break
                 await asyncio.sleep(self.interval)
         except asyncio.CancelledError:
             pass
 
-    async def get_health_status(self) -> bool:
+    def get_health_status(self) -> bool:
         if self._broker:
             return self._broker.is_connected
         return False

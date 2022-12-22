@@ -8,18 +8,18 @@ if TYPE_CHECKING:
 
     from fastapi import FastAPI
 
-    from asvc import Service
+    from .runner import ServiceRunner
 
 
-def include_service(
+def include_service_runner(
     app: FastAPI,
-    service: Service,
+    runner: ServiceRunner,
     add_health_endpoint: bool = False,
     path: str = "/healthz",
     response_class=None,
 ) -> None:
-    app.on_event("startup")(service.start)
-    app.on_event("shutdown")(service.stop)
+    app.on_event("startup")(runner.start)
+    app.on_event("shutdown")(runner.stop)
 
     if add_health_endpoint:
         if response_class is None:
@@ -27,12 +27,12 @@ def include_service(
 
             response_class = JSONResponse
 
-        for m in service.broker.middlewares:
+        for m in runner.broker.middlewares:
             if isinstance(m, HealthCheckMiddleware):
 
                 async def _get_health_status():
                     """Return get broker connection status"""
-                    status = await m.get_health_status()
+                    status = m.get_health_status()
                     return (
                         response_class({"status": "ok"})
                         if status
@@ -44,3 +44,4 @@ def include_service(
                 app.add_api_route(
                     path=path, endpoint=_get_health_status, methods=["GET"]
                 )
+                return

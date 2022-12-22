@@ -11,7 +11,7 @@ asvc = "asvc.cli:cli"
 [tool.poetry.dependencies]
 python = ">=3.7,<4.0"
 pydantic = "^1.9.1"
-uvloop = {version = "^0.16.0", optional = true}
+async-timeout = "^4.0.2"
 
 # cli
 aiorun = {version = "^2022.4.1", optional = true}
@@ -19,36 +19,32 @@ click = {version = "^8.1.3", optional = true}
 
 # encoders
 orjson = {version = "^3.7.1", optional = true}
-ormsgpack = {version = "^1.2.3", optional = true}
+ormsgpack = {version = "^1.2.4", optional = true}
 
-# misc
-aiohttp = {version = "^3.8.1", optional = true}
-prometheus-client = {version = "^0.14.1", optional = true}
-opentelemetry-api = {version = "^1.13.0", optional = true}
-opentelemetry-sdk = {version = "^1.13.0", optional = true}
+# prometheus
+prometheus-client = {version = "^0.15.0", optional = true}
 
 # backends
 nats-py = {version = "^2.1.3", optional = true}
 aioredis = {version = "^2.0.1", optional = true}
-aiokafka = {version = "^0.7.2", optional = true}
+aiokafka = {version = "^0.8.0", optional = true}
 aio-pika = {version = "^8.0.3", optional = true}
 gcloud-aio-pubsub = {version = "^5.0.0", optional = true}
-async-timeout = "^4.0.2"
+
+
 
 [tool.poetry.extras]
-all = ["orjson", "aiorun", "click", "prometheus-client", "nats-py",
-       "aiokafka", "aio-pika", "gcloud-aio-pubsub", "aiozmq", "aioredis", "ormsgpack",
-       "opentelemetry-api", "opentelemetry-sdk"]
+all = ["aiorun", "click", "orjson", "ormsgpack", "nats-py",
+       "aiokafka", "aio-pika", "gcloud-aio-pubsub", "aioredis", "prometheus-client"]
 
 cli = ["aiorun", "click"]
 
 # encoders
-msgpack = ["ormsgpack"]
 orjson = ["orjson"]
+ormsgpack = ["ormsgpack"]
 
 # observability
 prometheus = ["prometheus-client"]
-opentelemetry = ["opentelemetry-api", "opentelemetry-sdk"]
 
 # backends
 nats = ["nats-py"]
@@ -56,7 +52,6 @@ redis = ["aioredis"]
 kafka = ["aiokafka"]
 rabbitmq = ["aio-pika"]
 pubsub = ["gcloud-aio-pubsub"]
-zmq = ["aiozmq"]
 
 [tool.poetry.dev-dependencies]
 pytest = "^7.1.2"

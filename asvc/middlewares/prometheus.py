@@ -1,16 +1,14 @@
 from __future__ import annotations
 
-import os
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
 
 from prometheus_client import (
+    REGISTRY,
     CollectorRegistry,
     Counter,
     Gauge,
     Histogram,
-    generate_latest,
-    multiprocess,
+    start_http_server,
 )
 
 from asvc.middleware import Middleware
@@ -21,17 +19,45 @@ if TYPE_CHECKING:
     from asvc.consumer import Consumer
     from asvc.models import CloudEvent
 
+DEFAULT_BUCKETS = (
+    5,
+    10,
+    25,
+    50,
+    75,
+    100,
+    250,
+    500,
+    750,
+    1000,
+    2500,
+    5000,
+    7500,
+    10000,
+    30000,
+    60000,
+    600000,
+    900000,
+    float("inf"),
+)
+
 
 class PrometheusMiddleware(Middleware):
-    # TODO: expose metrics via aiohttp server or push to gateway
-    def __init__(self, expose_metrics: bool = False):
-        self.expose_metrics = expose_metrics
-        self.registry = CollectorRegistry()
-        if (
-            "prometheus_multiproc_dir" in os.environ
-            or "PROMETHEUS_MULTIPROC_DIR" in os.environ
-        ):
-            multiprocess.MultiProcessCollector(self.registry)
+    def __init__(
+        self,
+        run_server: bool = False,
+        registry: CollectorRegistry | None = None,
+        buckets: tuple[float] | None = None,
+        server_host: str = "0.0.0.0",  # nosec
+        server_port: int = 8888,
+    ):
+        self.run_server = run_server
+        self.registry = registry or REGISTRY
+        self.buckets = buckets or DEFAULT_BUCKETS
+        self.server_host = server_host
+        self.server_port = server_port
+        self.message_start_times: dict[str, int] = {}
+
         self.in_progress = Gauge(
             "messages_in_progress",
             "Total number of messages being processed.",
@@ -42,6 +68,11 @@ class PrometheusMiddleware(Middleware):
             "messages_total",
             "Total number of messages processed.",
             ["topic", "service", "consumer"],
+            registry=self.registry,
+        )
+        self.total_skipped_messages = Counter(
+            "messages_skipped_total",
+            "Total number of messages skipped processing.",
             registry=self.registry,
         )
         self.total_messages_published = Counter(
@@ -67,8 +98,8 @@ class PrometheusMiddleware(Middleware):
             "Time spend processing message",
             ["topic", "service", "consumer"],
             registry=self.registry,
+            buckets=self.buckets,
         )
-        self.message_start_times: dict[UUID | str, int] = {}
 
     async def before_process_message(
         self, broker: Broker, consumer: Consumer, message: CloudEvent
@@ -95,7 +126,11 @@ class PrometheusMiddleware(Middleware):
         message_duration = current_millis() - message_start_time
         self.message_durations.labels(*labels).observe(message_duration)
 
-    after_skip_message = after_process_message
+    async def after_skip_message(
+        self, broker: Broker, consumer: Consumer, message: CloudEvent
+    ) -> None:
+        labels = (consumer.topic, consumer.service_name, consumer.name)
+        self.total_skipped_messages.labels(*labels).inc()
 
     async def after_publish(self, broker: Broker, message: CloudEvent, **kwargs):
         self.total_messages_published.labels(message.topic, message.source).inc()
@@ -104,10 +139,8 @@ class PrometheusMiddleware(Middleware):
         labels = (consumer.topic, consumer.service_name, consumer.name)
         self.total_rejected_messages.labels(*labels).inc()
 
-    @property
-    def latest(self):
-        return generate_latest(self.registry)
-
     async def after_broker_connect(self, broker: Broker):
-        if self.expose_metrics:
-            pass  # RUN http server
+        if self.run_server:
+            start_http_server(
+                self.server_port, self.server_host, registry=self.registry
+            )

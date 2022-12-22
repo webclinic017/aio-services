@@ -10,19 +10,22 @@ from typing import (
     TypeVar,
     Union,
 )
-from uuid import UUID
 
-from typing_extensions import Protocol
+from typing_extensions import Protocol, TypedDict
 
 if TYPE_CHECKING:
     from asvc.consumer import GenericConsumer
     from asvc.models import CloudEvent
 
-UUIDStr = Union[UUID, str]
 
 RawMessage = TypeVar("RawMessage")
 
 T = TypeVar("T", bound="CloudEvent")
+
+
+class TagMeta(TypedDict):
+    name: str
+    description: str
 
 
 class Encoder(Protocol):

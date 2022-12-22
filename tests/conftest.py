@@ -4,7 +4,7 @@ from datetime import date
 import pytest
 import pytest_asyncio
 
-from asvc import Service, CloudEvent, GenericConsumer
+from asvc import Service, CloudEvent, GenericConsumer, ServiceRunner
 from asvc.backends.stub import StubBroker
 from asvc.middleware import Middleware
 
@@ -29,7 +29,14 @@ def broker(middleware):
 
 @pytest.fixture
 def service(broker):
-    return Service(name="test_service", broker=broker)
+    return Service(name="test_service")
+
+
+@pytest.fixture
+def service_runner(service, broker):
+    runner = ServiceRunner(broker=broker)
+    runner.add_service(service)
+    return runner
 
 
 @pytest.fixture(scope="session")
@@ -50,13 +57,14 @@ def test_consumer(service, handler):
 
 @pytest.fixture()
 def generic_test_consumer(service):
-    @service.subscribe("test_topic")
-    class Consumer(GenericConsumer):
+    class TestConsumer(GenericConsumer):
         name = "test_generic_consumer"
 
         async def process(self, message: CloudEvent):
             assert isinstance(message, CloudEvent)
             return 42
+
+    service.subscribe("test_topic")(TestConsumer)
 
 
 @pytest.fixture()
@@ -69,7 +77,7 @@ def ce() -> CloudEvent:
 
 
 @pytest_asyncio.fixture()
-async def running_service(service: Service) -> Service:
-    await service.start()
-    yield service
-    await service.stop()
+async def running_service(runner: ServiceRunner) -> None:
+    await runner.start()
+    yield
+    await runner.stop()

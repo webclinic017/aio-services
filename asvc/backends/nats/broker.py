@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 
 
 class NatsBroker(Broker[NatsMsg]):
+    protocol = "nats"
+
     def __init__(
         self,
         *,
@@ -42,11 +44,11 @@ class NatsBroker(Broker[NatsMsg]):
     def parse_incoming_message(self, message: NatsMsg) -> Any:
         return self.encoder.decode(message.data)
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, service_name: str, consumer: Consumer) -> None:
 
         await self.nc.subscribe(
             subject=consumer.topic,
-            queue=consumer.service_name,
+            queue=service_name,
             cb=self.get_handler(consumer),
         )
 
@@ -110,10 +112,10 @@ class JetStreamBroker(NatsBroker):
             headers=headers,
         )
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, service_name: str, consumer: Consumer) -> None:
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic,
-            durable=consumer.full_name,
+            durable=f"{service_name}:{consumer.name}",
             config=consumer.options.get("config"),
         )
         handler = self.get_handler(consumer)

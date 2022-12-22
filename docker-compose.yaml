@@ -5,6 +5,9 @@ services:
     command: "-js"
     ports:
       - "4222:4222"
+    volumes:
+      - nats-tmp:/tmp/nats/jetstream
+      - nats-data:/data
   rabbitmq:
     image: rabbitmq:3.8-management
     environment:
@@ -38,3 +41,7 @@ services:
     image: redis:alpine
     ports:
       - "6379:6379"
+
+volumes:
+  nats-tmp:
+  nats-data:

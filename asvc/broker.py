@@ -7,15 +7,14 @@ from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic
 import async_timeout
 from pydantic import ValidationError
 
-from asvc import CloudEvent
-from asvc.exceptions import DecodeError, Reject, Skip
-from asvc.logger import LoggerMixin
-from asvc.middleware import Middleware
-from asvc.middlewares import default_middlewares
-from asvc.types import Encoder, RawMessage
+from .exceptions import DecodeError, Reject, Skip
+from .logger import LoggerMixin
+from .middleware import Middleware
+from .models import CloudEvent
+from .types import Encoder, RawMessage
 
 if TYPE_CHECKING:
-    from asvc.consumer import Consumer
+    from .consumer import Consumer
 
 
 class AbstractBroker(ABC, Generic[RawMessage]):
@@ -36,7 +35,7 @@ class AbstractBroker(ABC, Generic[RawMessage]):
         raise NotImplementedError
 
     @abstractmethod
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, service_name: str, consumer: Consumer) -> None:
         raise NotImplementedError
 
     @property
@@ -53,28 +52,26 @@ class AbstractBroker(ABC, Generic[RawMessage]):
 
 
 class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
+    protocol: str
+
     def __init__(
         self,
         *,
+        name: str | None = None,
+        description: str | None = None,
         encoder: Encoder | None = None,
         middlewares: list[Middleware] | None = None,
         **options,
     ) -> None:
         """Base broker class"""
         if encoder is None:
-            from asvc.encoders import get_default_encoder
+            from .encoders import get_default_encoder
 
             encoder = get_default_encoder()
-
+        self.name = name or str(self)
+        self.description = description or type(self).__doc__
         self.encoder = encoder
-        self.middlewares: list[Middleware] = []
-
-        if middlewares is None:
-            middlewares = [m() for m in default_middlewares]
-
-        for m in middlewares:
-            self.add_middleware(m)
-
+        self.middlewares: list[Middleware] = middlewares or []
         self.options = options
         self._lock = asyncio.Lock()
         self._stopped = True
@@ -91,7 +88,7 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
             try:
                 parsed = self.parse_incoming_message(raw_message)
                 message = consumer.validate_message(parsed)
-                setattr(message, "_raw", raw_message)
+                message._raw = raw_message
 
             except (DecodeError, ValidationError) as e:
                 self.logger.exception(
@@ -119,7 +116,7 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
                             topic=consumer.forward_response.topic,
                             data=result,
                             trace_id=message.trace_id,
-                            source=consumer.service_name,
+                            source=consumer.name,
                         )
                     )
             # TODO: asyncio.CanceledError handling (?)
@@ -206,9 +203,9 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         )
         await self.publish_event(message)
 
-    async def start_consumer(self, consumer: Consumer):
+    async def start_consumer(self, service_name: str, consumer: Consumer):
         await self.dispatch_before("consumer_start", consumer)
-        await self._start_consumer(consumer)
+        await self._start_consumer(service_name, consumer)
         await self.dispatch_after("consumer_start", consumer)
 
     def add_middleware(self, middleware: Middleware) -> None:
@@ -230,11 +227,3 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
 
     async def dispatch_after(self, event: str, *args, **kwargs) -> None:
         await self._dispatch(f"after_{event}", *args, **kwargs)
-
-    @classmethod
-    def from_env(cls, **kwargs):
-        ...
-
-    @classmethod
-    def from_object(cls, obj, **kwargs):
-        ...

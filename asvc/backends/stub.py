@@ -21,6 +21,8 @@ class Message:
 
 
 class StubBroker(Broker[Message]):
+    protocol = "in-memory"
+
     def __init__(
         self,
         *,
