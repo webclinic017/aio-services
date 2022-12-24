@@ -35,7 +35,7 @@ class AbstractBroker(ABC, Generic[RawMessage]):
         raise NotImplementedError
 
     @abstractmethod
-    async def _start_consumer(self, service_name: str, consumer: Consumer) -> None:
+    async def _start_consumer(self, consumer: Consumer) -> None:
         raise NotImplementedError
 
     @property
@@ -203,9 +203,9 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         )
         await self.publish_event(message)
 
-    async def start_consumer(self, service_name: str, consumer: Consumer):
+    async def start_consumer(self, consumer: Consumer):
         await self.dispatch_before("consumer_start", consumer)
-        await self._start_consumer(service_name, consumer)
+        await self._start_consumer(consumer)
         await self.dispatch_after("consumer_start", consumer)
 
     def add_middleware(self, middleware: Middleware) -> None:

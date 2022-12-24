@@ -44,11 +44,10 @@ class NatsBroker(Broker[NatsMsg]):
     def parse_incoming_message(self, message: NatsMsg) -> Any:
         return self.encoder.decode(message.data)
 
-    async def _start_consumer(self, service_name: str, consumer: Consumer) -> None:
-
+    async def _start_consumer(self, consumer: Consumer) -> None:
         await self.nc.subscribe(
             subject=consumer.topic,
-            queue=service_name,
+            queue=consumer.full_name,
             cb=self.get_handler(consumer),
         )
 
@@ -93,7 +92,7 @@ class JetStreamBroker(NatsBroker):
 
     async def _connect(self) -> None:
         await super()._connect()
-        self._js = self.nc.jetstream(**self.options.get("js_options", {}))
+        self._js = self.nc.jetstream(**self.options.get("jetstream_options", {}))
 
     @retry_async(max_retries=3)
     async def _publish(
@@ -112,24 +111,19 @@ class JetStreamBroker(NatsBroker):
             headers=headers,
         )
 
-    async def _start_consumer(self, service_name: str, consumer: Consumer) -> None:
+    async def _start_consumer(self, consumer: Consumer) -> None:
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic,
-            durable=f"{service_name}:{consumer.name}",
+            durable=consumer.full_name,
             config=consumer.options.get("config"),
         )
         handler = self.get_handler(consumer)
+        batch = consumer.options.get("prefetch_count", self.prefetch_count)
+        timeout = consumer.options.get("fetch_timeout", self.fetch_timeout)
         try:
             while not self._stopped:
                 try:
-                    messages = await subscription.fetch(
-                        batch=consumer.options.get(
-                            "prefetch_count", self.prefetch_count
-                        ),
-                        timeout=consumer.options.get(
-                            "fetch_timeout", self.fetch_timeout
-                        ),
-                    )
+                    messages = await subscription.fetch(batch=batch, timeout=timeout)
                     tasks = [asyncio.create_task(handler(message)) for message in messages]  # type: ignore
                     await asyncio.gather(*tasks, return_exceptions=True)
                 except nats.errors.TimeoutError:

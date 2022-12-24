@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 
 def get_channels_spec(service: Service) -> dict[str, ChannelItem]:
-    channels = defaultdict(ChannelItem)
-    tags = {k: Tag(**v) for k, v in service.tags_metadata}
+    channels: dict[str, ChannelItem] = defaultdict(ChannelItem)
+    tags = {t["name"]: Tag(**t) for t in service.tags_metadata}
     for publishes in service.publish_registry.values():
         publish = Operation(
             message=Message(
@@ -22,7 +22,7 @@ def get_channels_spec(service: Service) -> dict[str, ChannelItem]:
                 payload=publishes.event_type.schema(
                     ref_template="#/components/messages/{model}"
                 ),
-                tags=[tags[t] for t in publishes.kwargs.get("tags", [])],
+                # tags=[tags[t] for t in publishes.kwargs.get("tags", [])],
             )
         )
         channels[publishes.topic].publish = publish

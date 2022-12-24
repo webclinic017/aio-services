@@ -37,11 +37,11 @@ class KafkaBroker(Broker[aiokafka.ConsumerRecord]):
     def is_connected(self) -> bool:
         return True
 
-    async def _start_consumer(self, consumer: Consumer):
+    async def _start_consumer(self, consumer: Consumer) -> None:
         handler = self.get_handler(consumer)
         subscriber = aiokafka.AIOKafkaConsumer(
             consumer.topic,
-            group_id=consumer.service_name,
+            group_id=consumer.full_name,
             bootstrap_servers=self.bootstrap_servers,
             enable_auto_commit=False,
         )

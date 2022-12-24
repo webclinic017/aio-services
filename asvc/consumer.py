@@ -22,22 +22,29 @@ class ForwardResponse:
 class Consumer(ABC, Generic[T]):
     event_type: T
     name: str
+    description: str | None
 
     def __init__(
         self,
         *,
         topic: str,
+        service_name: str,
         timeout: int = 120,
         dynamic: bool = False,
         forward_response: ForwardResponse | None = None,
         **options: Any,
     ):
+        self.service_name = service_name
         self.topic = topic
         self.timeout = timeout
         self.dynamic = dynamic
         self.forward_response = forward_response
         self.options: dict[str, Any] = options
         self.logger = get_logger(__name__, self.name)
+
+    @property
+    def full_name(self) -> str:
+        return f"{self.service_name}:{self.name}"
 
     def validate_message(self, message: Any) -> T:
         return self.event_type.parse_obj(message)
@@ -83,5 +90,5 @@ class GenericConsumer(Consumer, ABC):
             cls.process = run_async(cls.process)
 
     @property
-    def description(self) -> str:
-        return self.process.__doc__
+    def description(self):
+        return self.__doc__
