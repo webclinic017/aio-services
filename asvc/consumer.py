@@ -53,14 +53,6 @@ class Consumer(ABC, Generic[T]):
     async def process(self, message: CloudEvent):
         raise NotImplementedError
 
-    def __hash__(self):
-        return hash((self.name, self.topic))
-
-    def __eq__(self, other):
-        if not isinstance(other, Consumer):
-            return False
-        return self.name == other.name and self.topic == other.topic
-
 
 class FnConsumer(Consumer[T]):
     def __init__(
@@ -112,10 +104,10 @@ class GenericConsumer(Consumer[T], ABC):
 class ConsumerGroup:
     def __init__(self, prefix: str = ""):
         self.prefix = prefix
-        self.consumers: set[Consumer] = set()
+        self.consumers: dict[str, Consumer] = {}
 
     def add_consumer(self, consumer: Consumer) -> None:
-        self.consumers.add(consumer)
+        self.consumers[consumer.name] = consumer
 
     def add_consumer_group(self, other: ConsumerGroup) -> None:
         self.consumers.update(other.consumers)
@@ -139,7 +131,7 @@ class ConsumerGroup:
             else:
                 raise TypeError("Expected function or GenericConsumer")
 
-            self.consumers.add(consumer)
+            self.consumers[consumer.name] = consumer
             return func_or_cls
 
         return wrapper

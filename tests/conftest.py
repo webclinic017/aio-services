@@ -41,11 +41,11 @@ def handler():
     return example_handler
 
 
-@pytest.fixture()
+@pytest.fixture
 def test_consumer(service, handler):
     consumer_name = "test_consumer"
     service.subscribe("test_topic", name=consumer_name)(handler)
-    return service.consumers[consumer_name]
+    return service.consumer_group.consumers[consumer_name]
 
 
 @pytest.fixture()
@@ -72,5 +72,5 @@ def ce() -> CloudEvent:
 @pytest_asyncio.fixture()
 async def running_service(service: Service) -> None:
     await service.start()
-    yield
+    yield service
     await service.stop()
