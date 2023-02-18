@@ -89,6 +89,20 @@ no_site_packages = true
 [tool.isort]
 profile = "black"
 
+[tool.semantic_release]
+version_variable = [
+    'asvc/_version.py:__version__',
+]
+version_toml = 'pyproject.toml:tool.poetry.version'
+version_pattern = [
+    'docs/index.md:Version (\d+\.\d+\.\d+)'
+]
+upload_to_repository = false
+major_on_zero = true
+hvcs = "github"
+commit_message = "Bump version: {version}"
+tag_commit = false
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
