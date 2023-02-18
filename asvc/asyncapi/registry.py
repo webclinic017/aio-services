@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from asvc.asyncapi.models import PublishInfo
 from asvc.models import CloudEvent
 
