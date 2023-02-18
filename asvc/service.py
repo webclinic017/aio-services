@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Callable
 
-from .consumer import Consumer, ConsumerGroup
+from .consumer import ConsumerGroup
 from .logger import LoggerMixin
 from .models import CloudEvent
 from .utils import generate_instance_id
@@ -24,7 +24,6 @@ class Service(LoggerMixin):
         version: str | None = None,
         description: str = "",
         tags_metadata: list[TagMeta] = None,
-        consumers: dict[str, Consumer] = None,
         instance_id_generator: Callable[[], str] = generate_instance_id,
     ):
         self.broker = broker
@@ -34,7 +33,6 @@ class Service(LoggerMixin):
         self.qualname = f"{self.name}.{self.version}" if version else self.name
         self.description = description
         self.tags_metadata = tags_metadata or []
-        self.consumers = consumers or {}
         self.id = instance_id_generator()
         self.consumer_group = ConsumerGroup(prefix=self.qualname)
 
@@ -60,6 +58,10 @@ class Service(LoggerMixin):
     ):
         kwargs.setdefault("source", self.qualname)
         return await self.broker.publish(topic, data, type_, **kwargs)
+
+    @property
+    def consumers(self):
+        return self.consumer_group.consumers
 
     async def publish_event(self, message: CloudEvent, **kwargs):
         if not message.source:
