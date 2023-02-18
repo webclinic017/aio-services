@@ -30,7 +30,7 @@ class Service(LoggerMixin):
         self.broker = broker
         self.name = name
         self.title = title or name.title()
-        self.version = version
+        self.version = version or "1.0"
         self.qualname = f"{self.name}.{self.version}" if version else self.name
         self.description = description
         self.tags_metadata = tags_metadata or []

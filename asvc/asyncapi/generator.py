@@ -32,7 +32,7 @@ def get_all_models_schema(service: Service):
         m.event_type  # type: ignore
         for m in chain(service.consumers.values(), PUBLISH_REGISTRY.values())
     ]
-    return all_schemas(all_models, ref_prefix=PREFIX)["definitions"]
+    return all_schemas(all_models, ref_prefix=PREFIX).get("definitions", [])
 
 
 def populate_channel_spec(service: Service):
