@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type
+from typing import Any, Dict, Optional, Type
 
 from pydantic import BaseModel as _BaseModel
 from pydantic import Field
@@ -19,7 +19,7 @@ class Info(BaseModel):
 class PublishInfo(BaseModel):
     topic: str
     event_type: Type[CloudEvent]
-    kwargs: dict[str, Any]
+    kwargs: Dict[str, Any]
 
 
 class PayloadRef(BaseModel):
@@ -62,13 +62,13 @@ class Tag(BaseModel):
 
 
 class Components(BaseModel):
-    schemas: dict[str, Any]
+    schemas: Dict[str, Any]
 
 
 class AsyncAPI(BaseModel):
     asyncapi: str = "2.5.0"
     info: Info
-    servers: dict[str, Server] = {}
-    channels: dict[str, ChannelItem] = {}
+    servers: Dict[str, Server] = {}
+    channels: Dict[str, ChannelItem] = {}
     default_content_type: str = Field("application/json", alias="defaultContentType")
     components: Components
