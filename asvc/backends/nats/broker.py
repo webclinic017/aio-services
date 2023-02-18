@@ -11,26 +11,35 @@ from asvc.broker import Broker
 from asvc.exceptions import BrokerError
 from asvc.utils.functools import retry_async
 
+from .settings import JetStreamSettings, NatsSettings
+
 if TYPE_CHECKING:
-    from asvc.consumer import Consumer
-    from asvc.middleware import Middleware
-    from asvc.models import CloudEvent
-    from asvc.types import Encoder
+    from asvc import CloudEvent, Consumer, Service
 
 
 class NatsBroker(Broker[NatsMsg]):
+    """
+    :param url: Url to nats server(s)
+    :param connection_options: additional connection options passed to nats.connect(...)
+    :param auto_flush: auto flush messages on publish
+    :param kwargs: options for base class
+    """
+
+    protocol = "nats"
+
     def __init__(
         self,
         *,
-        url: str,
-        encoder: Encoder | None = None,
-        middlewares: list[Middleware] | None = None,
+        url: str = "nats://localhost:4444",
         connection_options: dict[str, Any] | None = None,
-        **options: Any,
+        auto_flush: bool = True,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(encoder=encoder, middlewares=middlewares, **options)
+
+        super().__init__(**kwargs)
         self.url = url
         self.connection_options = connection_options or {}
+        self._auto_flush = auto_flush
         self._nc = None
 
     @property
@@ -42,17 +51,21 @@ class NatsBroker(Broker[NatsMsg]):
     def parse_incoming_message(self, message: NatsMsg) -> Any:
         return self.encoder.decode(message.data)
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
-
+    async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
+        queue = f"{service.name}:{consumer.name}"
         await self.nc.subscribe(
             subject=consumer.topic,
-            queue=consumer.service_name,
-            cb=self.get_handler(consumer),
+            queue=queue,
+            cb=self.get_handler(service, consumer),
         )
 
     async def _disconnect(self) -> None:
-        if self._nc is not None:
-            await self._nc.close()
+        await self.nc.flush()
+        await self.nc.drain()
+        await self.nc.close()
+
+    async def flush(self):
+        await self.nc.flush()
 
     async def _connect(self) -> None:
         self._nc = await nats.connect(self.url, **self.connection_options)
@@ -61,26 +74,40 @@ class NatsBroker(Broker[NatsMsg]):
     async def _publish(self, message: CloudEvent, **kwargs) -> None:
         data = self.encoder.encode(message.dict())
         await self.nc.publish(message.topic, data, **kwargs)
+        if self._auto_flush:
+            await self.nc.flush()
 
     @property
     def is_connected(self) -> bool:
         return self.nc.is_connected
 
+    Settings = NatsSettings
+
 
 class JetStreamBroker(NatsBroker):
+    """
+    NatsBroker with JetStream enabled
+    :param prefetch_count: default number of messages to prefetch
+    :param fetch_timeout: timeout for subscription pull
+    :param jetstream_options: additional options passed to nc.jetstream(...)
+    :param kwargs: all other options for base classes NatsBroker, Broker
+    """
+
+    Settings = JetStreamSettings
+
     def __init__(
         self,
         *,
-        url: str,
-        encoder: Encoder | None = None,
-        middlewares: list[Middleware] | None = None,
         prefetch_count: int = 10,
         fetch_timeout: int = 10,
-        **options: Any,
+        jetstream_options: dict[str, Any] | None = None,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(url=url, encoder=encoder, middlewares=middlewares, **options)
+
+        super().__init__(**kwargs)
         self.prefetch_count = prefetch_count
         self.fetch_timeout = fetch_timeout
+        self.jetstream_options = jetstream_options or {}
         self._js = None
 
     @property
@@ -91,7 +118,7 @@ class JetStreamBroker(NatsBroker):
 
     async def _connect(self) -> None:
         await super()._connect()
-        self._js = self.nc.jetstream(**self.options.get("js_options", {}))
+        self._js = self.nc.jetstream(**self.jetstream_options)
 
     @retry_async(max_retries=3)
     async def _publish(
@@ -102,6 +129,8 @@ class JetStreamBroker(NatsBroker):
         headers: dict[str, str] | None = None,
     ) -> None:
         data = self.encoder.encode(message)
+        headers = headers or {}
+        headers.setdefault("Content-Type", self.encoder.CONTENT_TYPE)
         await self.js.publish(
             subject=message.topic,
             payload=data,
@@ -110,38 +139,34 @@ class JetStreamBroker(NatsBroker):
             headers=headers,
         )
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
+        durable = f"{service.name}:{consumer.name}"
         subscription = await self.js.pull_subscribe(
             subject=consumer.topic,
-            durable=consumer.full_name,
+            durable=durable,
             config=consumer.options.get("config"),
         )
-        handler = self.get_handler(consumer)
+        handler = self.get_handler(service, consumer)
+        batch = consumer.options.get("prefetch_count", self.prefetch_count)
+        timeout = consumer.options.get("fetch_timeout", self.fetch_timeout)
         try:
             while not self._stopped:
                 try:
-                    messages = await subscription.fetch(
-                        batch=consumer.options.get(
-                            "prefetch_count", self.prefetch_count
-                        ),
-                        timeout=consumer.options.get(
-                            "fetch_timeout", self.fetch_timeout
-                        ),
-                    )
+                    messages = await subscription.fetch(batch=batch, timeout=timeout)
                     tasks = [asyncio.create_task(handler(message)) for message in messages]  # type: ignore
                     await asyncio.gather(*tasks, return_exceptions=True)
                 except nats.errors.TimeoutError:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(5)
         except Exception:
             self.logger.exception("Cancelling consumer")
         finally:
             if consumer.dynamic:
                 await subscription.unsubscribe()
 
-    async def _ack(self, message: CloudEvent) -> None:
-        if not message.raw._ackd:
-            await message.raw.ack()
+    async def _ack(self, message: NatsMsg) -> None:
+        if not message._ackd:
+            await message.ack()
 
-    async def _nack(self, message: CloudEvent, delay=None) -> None:
-        if not message.raw._ackd:
-            await message.raw.nak(delay=delay)
+    async def _nack(self, message: NatsMsg, delay=None) -> None:
+        if not message._ackd:
+            await message.nak(delay=delay)

@@ -1,27 +1,13 @@
 from __future__ import annotations
 
-import importlib
 import logging
 
-import aiorun
 import click
+from typing_extensions import Literal
 
-from asvc.service import Service, ServiceGroup
-
-
-def _import_service(path: str) -> Service | ServiceGroup:
-    module_name, _, service_name = path.partition(":")
-    try:
-        module = importlib.import_module(module_name)
-        service = getattr(module, service_name)
-        assert isinstance(
-            service, (Service, ServiceGroup)
-        ), "Object must be instance of Service(Group)"
-        return service
-    except (AttributeError, ImportError) as e:
-        click.echo(f"Service {service_name} not found in module {module_name}")
-        click.echo(e)
-        raise SystemExit(1)
+from .runner import ServiceRunner
+from .service import Service
+from .utils.imports import import_from_string
 
 
 @click.group()
@@ -30,25 +16,39 @@ def cli() -> None:
 
 
 @cli.command(help="Run service")
-@click.argument("service")
+@click.argument("service_or_runner")
 @click.option("--log-level", default="info")
 @click.option("--use-uvloop", default="false")
-def run(service: str, log_level: str, use_uvloop: str) -> None:
-    click.echo(f"Running service [{service}]...")
+def run(service_or_runner: str, log_level: str, use_uvloop: str) -> None:
+    click.echo(f"Running [{service_or_runner}]...")
     logging.basicConfig(level=log_level.upper())
-    svc = _import_service(service)
-    if svc:
-        aiorun.run(
-            svc.start(), shutdown_callback=svc.stop, use_uvloop=(use_uvloop == "true")
-        )
+    obj = import_from_string(service_or_runner)
+    if isinstance(obj, Service):
+        obj = ServiceRunner(obj)
+    obj.run(use_uvloop=(use_uvloop == "true"))
 
 
 @cli.command()
 @click.argument("service")
 def verify(service: str) -> None:
     click.echo(f"Verifying service [{service}]...")
-    _import_service(service)
+    s = import_from_string(service)
+    assert isinstance(s, Service)
     click.echo("OK")
+
+
+@cli.command()
+@click.argument("service")
+@click.option("--out", default="./asyncapi.json")
+@click.option("--format", default="json")
+def generate_docs(
+    service: str, out: str = "./asyncapi.json", format: Literal["json", "yaml"] = "json"
+):
+    from .asyncapi.generator import get_async_api_spec, save_async_api_to_file
+
+    svc = import_from_string(service)
+    spec = get_async_api_spec(svc)
+    save_async_api_to_file(spec, out, format)
 
 
 if __name__ == "__main__":

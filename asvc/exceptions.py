@@ -6,6 +6,10 @@ if TYPE_CHECKING:
     from asvc.models import CloudEvent
 
 
+class ConfigurationError(Exception):
+    pass
+
+
 class BrokerError(Exception):
     pass
 
@@ -35,6 +39,9 @@ class Fail(Exception):
 
 class Reject(Exception):
     """Reject (nack) message"""
+
+    def __init__(self, reason: str):
+        self.reason = reason
 
 
 class Retry(Exception):

@@ -20,6 +20,12 @@ The package utilizes `pydantic` as the only required dependency.
 For message format Cloud Events format is used.
 Service can be run as standalone processes, or included into starlette (e.g. FastAPI) applications.
 
+## Installation
+
+```shell
+pip install asvc
+```
+
 ## Multiple broker support (in progress)
 
 - Stub (in memory using `asyncio.Queue` for PoC, local development and testing)
@@ -55,31 +61,33 @@ do not support `asyncio`. This is why this project was born.
 
 ```python
 import asyncio
-from asvc import Service, CloudEvent
-from asvc import Middleware
+from asvc import Service, CloudEvent, ServiceRunner, Middleware
 from asvc.backends.nats.broker import JetStreamBroker
 
 
-broker = JetStreamBroker(url="nats://localhost:4222")
-
-service = Service(name="example-service", broker=broker)
-
-
 class SendMessageMiddleware(Middleware):
-    async def after_service_start(self, broker, service: Service):
+    async def after_broker_connect(self, broker: "Broker") -> None:
         print(f"After service start, running with {broker}")
         await asyncio.sleep(10)
         for i in range(100):
-            await service.publish("test.topic", data={"counter": i})
+            await broker.publish("test.topic", data={"counter": i})
         print("Published event(s)")
 
 
-broker.add_middleware(SendMessageMiddleware())
-
+service = Service(name="example-service")
 
 @service.subscribe("test.topic")
 async def example_run(message: CloudEvent):
     print(f"Received Message {message.id} with data: {message.data}")
+
+        
+global_broker = JetStreamBroker(url="nats://localhost:4222")
+global_broker.add_middleware(SendMessageMiddleware())
+
+runner = ServiceRunner(services=[service], broker=global_broker)
+
+if __name__ == "__main__":
+    runner.run()
 
 ```
 
@@ -96,7 +104,7 @@ or web server like gunicorn.
 - Automatic [Async Api](https://www.asyncapi.com/) docs generation from service definition.
 - More tests
   - Integration tests with docker-compose and all backends
-- [OpenTelemetry](https://opentelemetry.io/) Middleware
 - More backends (zeromq, pulsar, solace?)
 - Pluggable logger interface (for third party integrations)
 - Docs + tutorials
+- [OpenTelemetry](https://opentelemetry.io/) Middleware\*

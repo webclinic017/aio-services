@@ -12,25 +12,24 @@ from gcloud.aio.pubsub import (
 
 from asvc.broker import Broker
 from asvc.exceptions import BrokerError
-from asvc.middleware import Middleware
 from asvc.utils.functools import retry_async
 
+from .settings import PubSubSettings
+
 if TYPE_CHECKING:
-    from asvc.consumer import Consumer
-    from asvc.models import CloudEvent
-    from asvc.types import Encoder
+    from asvc import CloudEvent, Consumer, Service
 
 
 class PubSubBroker(Broker[SubscriberMessage]):
+    Settings = PubSubSettings
+
     def __init__(
         self,
         *,
         service_file: str,
-        encoder: Encoder | None = None,
-        middlewares: list[Middleware] | None = None,
-        **options: Any,
+        **kwargs: Any,
     ) -> None:
-        super().__init__(encoder=encoder, middlewares=middlewares, **options)
+        super().__init__(**kwargs)
         self.service_file = service_file
         self._client = None
 
@@ -40,9 +39,9 @@ class PubSubBroker(Broker[SubscriberMessage]):
     async def _disconnect(self) -> None:
         await self.client.close()
 
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
         consumer_client = SubscriberClient(service_file=self.service_file)
-        handler = self.get_handler(consumer)
+        handler = self.get_handler(service, consumer)
         await subscribe(
             subscription=consumer.topic,
             handler=handler,
@@ -66,7 +65,7 @@ class PubSubBroker(Broker[SubscriberMessage]):
     ) -> None:
         msg = PubsubMessage(
             data=self.encoder.encode(message.dict()),
-            ordering_key=ordering_key or str(message.id),
+            ordering_key=ordering_key or message.id,
         )
         await self.client.publish(topic=message.topic, messages=[msg], timeout=timeout)
 

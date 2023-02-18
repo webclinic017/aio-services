@@ -1,66 +1,53 @@
 from __future__ import annotations
 
 import asyncio
-import inspect
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Callable
 
-from asvc import CloudEvent
-from asvc.consumer import Consumer, GenericConsumer
-from asvc.logger import LoggerMixin
+from .consumer import ConsumerGroup
+from .logger import LoggerMixin
+from .models import CloudEvent
+from .utils import generate_instance_id
 
 if TYPE_CHECKING:
-    from asvc.broker import Broker
-    from asvc.types import MessageHandlerT
+    from .broker import Broker
+    from .types import TagMeta
 
 
 class Service(LoggerMixin):
-    def __init__(self, name: str, broker: Broker):
-        self.name = name
+    """Logical group of consumers. Provides group (queue) name and handles versioning"""
+
+    def __init__(
+        self,
+        broker: Broker,
+        name: str,
+        title: str | None = None,
+        version: str | None = None,
+        description: str = "",
+        tags_metadata: list[TagMeta] = None,
+        instance_id_generator: Callable[[], str] = generate_instance_id,
+    ):
         self.broker = broker
-        self.consumers: dict[str, Consumer] = {}
-        self._publish_registry: set[type[CloudEvent]] = set()
+        self.name = name
+        self.title = title or name.title()
+        self.version = version or "1.0"
+        self.qualname = f"{self.name}.{self.version}" if version else self.name
+        self.description = description
+        self.tags_metadata = tags_metadata or []
+        self.id = instance_id_generator()
+        self.consumer_group = ConsumerGroup(prefix=self.qualname)
+
+    def __hash__(self):
+        return hash((self.name, self.version))
 
     def subscribe(
         self,
         topic: str,
-        name: str | None = None,
-        **extra: Any,
+        **options: Any,
     ):
-        def wrapper(func_or_cls: MessageHandlerT) -> MessageHandlerT:
-            if callable(func_or_cls):
-                consumer = Consumer(
-                    service_name=self.name,
-                    topic=topic,
-                    name=name or func_or_cls.__name__,
-                    fn=func_or_cls,  # type: ignore
-                    **extra,
-                )
-            elif inspect.isclass(func_or_cls) and issubclass(
-                func_or_cls, GenericConsumer
-            ):
-                consumer = func_or_cls(
-                    service_name=self.name,
-                    topic=topic,
-                    name=name or func_or_cls.name,
-                    **extra,
-                )
-            else:
-                raise TypeError("Expected function or generic consumer")
+        return self.consumer_group.subscribe(topic, **options)
 
-            self.consumers[consumer.name] = consumer
-            return func_or_cls
-
-        return wrapper
-
-    def publishes(self):
-        def wrapper(cls: type[CloudEvent]):
-            self._publish_registry.add(cls)
-            return cls
-
-        return wrapper
-
-    async def publish_event(self, message: CloudEvent, **kwargs: Any) -> None:
-        await self.broker.publish_event(message, **kwargs)
+    def add_consumer_group(self, consumer_group: ConsumerGroup) -> None:
+        self.consumer_group.add_consumer_group(consumer_group)
 
     async def publish(
         self,
@@ -69,30 +56,36 @@ class Service(LoggerMixin):
         type_: type[CloudEvent] | str = "CloudEvent",
         **kwargs,
     ):
-        await self.broker.publish(topic, data, type_, source=self.name, **kwargs)
+        kwargs.setdefault("source", self.qualname)
+        return await self.broker.publish(topic, data, type_, **kwargs)
 
-    async def start(self) -> None:
-        await self.broker.connect()
+    @property
+    def consumers(self):
+        return self.consumer_group.consumers
+
+    async def publish_event(self, message: CloudEvent, **kwargs):
+        if not message.source:
+            message.source = self.qualname
+        return await self.broker.publish_event(message, **kwargs)
+
+    async def start(self):
         await self.broker.dispatch_before("service_start", self)
+        await self.broker.connect()
         for consumer in self.consumers.values():
-            asyncio.create_task(self.broker.start_consumer(consumer))
+            asyncio.create_task(self.broker.start_consumer(self, consumer))
         await self.broker.dispatch_after("service_start", self)
 
-    async def stop(self, *args, **kwargs) -> None:
+    async def stop(self, *args, **kwargs):
+        await self.broker.dispatch_before("service_stop", self)
         await self.broker.disconnect()
+        await self.broker.dispatch_after("service_stop", self)
 
+    def run(self, *args, **kwargs):
+        from .runner import ServiceRunner
 
-class ServiceGroup:
-    def __init__(self, services: list[Service] | None = None):
-        self.services = services or []
+        runner = ServiceRunner(self)
+        runner.run(*args, **kwargs)
 
-    def add_service(self, service: Service):
-        self.services.append(service)
-
-    async def start(self) -> None:
-        await asyncio.gather(*[svc.start() for svc in self.services])
-
-    async def stop(self) -> None:
-        await asyncio.gather(
-            *[svc.stop() for svc in self.services], return_exceptions=True
-        )
+    @classmethod
+    def from_settings(cls, settings, **kwargs):
+        return cls(**settings.dict(), **kwargs)

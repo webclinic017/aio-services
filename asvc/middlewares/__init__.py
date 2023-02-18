@@ -4,8 +4,6 @@ from .healthcheck import HealthCheckMiddleware
 from .prometheus import PrometheusMiddleware
 from .retries import RetryConsumerOptions, RetryMiddleware
 
-default_middlewares = [RetryMiddleware]
-
 __all__ = [
     "DebugMiddleware",
     "ErrorHandlerMiddleware",
@@ -13,5 +11,4 @@ __all__ = [
     "HealthCheckMiddleware",
     "RetryMiddleware",
     "RetryConsumerOptions",
-    "default_middlewares",
 ]

@@ -5,7 +5,6 @@ from fastapi.responses import JSONResponse, Response
 from asvc import Service, CloudEvent
 from asvc.backends.nats import JetStreamBroker, NatsJetStreamResultMiddleware
 
-# from aio_services.backends.stub import StubBroker
 from asvc.web import include_service
 from asvc.middlewares import HealthCheckMiddleware
 
