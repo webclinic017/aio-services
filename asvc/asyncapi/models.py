@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Type
 
 from pydantic import BaseModel as _BaseModel
 from pydantic import Field
@@ -18,7 +18,7 @@ class Info(BaseModel):
 
 class PublishInfo(BaseModel):
     topic: str
-    event_type: type[CloudEvent]
+    event_type: Type[CloudEvent]
     kwargs: dict[str, Any]
 
 
