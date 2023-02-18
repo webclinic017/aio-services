@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 
 from pydantic import BaseModel as _BaseModel
 from pydantic import Field
@@ -31,7 +31,7 @@ class Message(BaseModel):
     payload: PayloadRef
     content_type: str = Field(..., alias="contentType")
     description: Optional[str] = None
-    tags: list[str] = []
+    tags: List[str] = []
 
 
 class Operation(BaseModel):
