@@ -1,3 +1,3 @@
-from asvc.backends.rabbitmq.broker import RabbitmqBroker
+from .broker import RabbitmqBroker
 
 __all__ = ["RabbitmqBroker"]

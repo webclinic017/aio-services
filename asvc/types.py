@@ -14,13 +14,13 @@ from typing import (
 from typing_extensions import Protocol, TypedDict
 
 if TYPE_CHECKING:
-    from asvc.consumer import GenericConsumer
-    from asvc.models import CloudEvent
+    from asvc import CloudEvent, GenericConsumer
 
 
 RawMessage = TypeVar("RawMessage")
 
 T = TypeVar("T", bound="CloudEvent")
+D = TypeVar("D", bound=Any)
 
 
 class TagMeta(TypedDict):

@@ -1,20 +1,23 @@
 import asyncio
 from asvc import Service, CloudEvent
 from asvc import Middleware
+from asvc.asyncapi.registry import publishes
 from asvc.backends.nats.broker import JetStreamBroker
 from asvc.models import BaseModel
 
 broker = JetStreamBroker(url="nats://localhost:4222")
 
-service = Service(name="example-service")
+service = Service(name="example-service", version="1.0", broker=broker)
 
 
 class MyData(BaseModel):
+    """Main data for service"""
+
     counter: int
     info: str
 
 
-@service.publishes("test.topic")
+@publishes("test.topic")
 class MyEvent(CloudEvent):
     """Some custom event"""
 
@@ -37,4 +40,5 @@ broker.add_middleware(SendMessageMiddleware())
 
 @service.subscribe("test.topic")
 async def example_run(message: MyEvent):
+    """Consumer for processing MyEvent(s)"""
     print(f"Received Message {message.id} with data: {message.data}")

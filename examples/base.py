@@ -3,10 +3,6 @@ from asvc import Service, CloudEvent
 from asvc import Middleware
 from asvc.backends.stub import StubBroker
 
-broker = StubBroker()
-
-service = Service(name="example-service", broker=broker)
-
 
 class SendMessageMiddleware(Middleware):
     async def after_service_start(self, broker, service: Service):
@@ -17,9 +13,15 @@ class SendMessageMiddleware(Middleware):
         print("Published event(s)")
 
 
-broker.add_middleware(SendMessageMiddleware())
+broker = StubBroker(middlewares=[SendMessageMiddleware()])
+
+service = Service(name="example-service", broker=broker)
 
 
 @service.subscribe("test.topic")
 async def example_run(message: CloudEvent):
     print(f"Received Message {message.id} with data: {message.data}")
+
+
+if __name__ == "__main__":
+    service.run()

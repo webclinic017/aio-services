@@ -26,9 +26,22 @@ nav:
   - "Aio Services": index.md
   - "Features": features.md
   - "Usage": usage.md
+  - "Backends": backends.md
   - "Reference": reference.md
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
 
 plugins:
   - search
   - autorefs
-  - mkdocstrings
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_signature_annotations: true
+            docstring_style: sphinx

@@ -2,46 +2,54 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from asvc.middlewares.healthcheck import HealthCheckMiddleware
+from .exceptions import ConfigurationError
 
 if TYPE_CHECKING:
 
     from fastapi import FastAPI
 
-    from .runner import ServiceRunner
+    from .service import Service
 
 
-def include_service_runner(
+def include_service(
     app: FastAPI,
-    runner: ServiceRunner,
+    service: Service,
     add_health_endpoint: bool = False,
     path: str = "/healthz",
-    response_class=None,
 ) -> None:
-    app.on_event("startup")(runner.start)
-    app.on_event("shutdown")(runner.stop)
+    app.on_event("startup")(service.start)
+    app.on_event("shutdown")(service.stop)
 
     if add_health_endpoint:
-        if response_class is None:
-            from fastapi.responses import JSONResponse
+        from fastapi.responses import JSONResponse
 
-            response_class = JSONResponse
+        for m in service.broker.middlewares:
+            if hasattr(m, "get_health_status") and callable(m.get_health_status):  # type: ignore
 
-        for m in runner.broker.middlewares:
-            if isinstance(m, HealthCheckMiddleware):
-
-                async def _get_health_status():
+                @app.get(path, response_class=JSONResponse)
+                def get_health_status():
                     """Return get broker connection status"""
                     status = m.get_health_status()
                     return (
-                        response_class({"status": "ok"})
+                        JSONResponse({"status": "ok"})
                         if status
-                        else response_class(
+                        else JSONResponse(
                             {"status": "Connection error"}, status_code=503
                         )
                     )
 
-                app.add_api_route(
-                    path=path, endpoint=_get_health_status, methods=["GET"]
-                )
-                return
+        raise ConfigurationError("HealthCheckMiddleware expected")
+
+
+def add_serve_async_api_endpoint(
+    app: FastAPI, service: Service, endpoint: str = "/asyncapi.json"
+):
+    from .asyncapi.generator import get_async_api_spec
+    from .asyncapi.models import AsyncAPI
+
+    spec = get_async_api_spec(service)
+
+    @app.get(endpoint, response_model=AsyncAPI)
+    def get_asyncapi_spec():
+        """Return service Async API specification"""
+        return spec

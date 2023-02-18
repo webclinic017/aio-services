@@ -61,7 +61,9 @@ class RetryMiddleware(Middleware):
             and message_age >= max_age
         ):
             self.logger.error(f"Retry limit exceeded for message {message.id}.")
-            await broker.ack(consumer, message)
+            return
+            # await broker.ack(consumer, message)
+
         if isinstance(exc, Retry) and exc.delay is not None:
             delay = exc.delay
         else:
@@ -71,11 +73,3 @@ class RetryMiddleware(Middleware):
 
         self.logger.info("Retrying message %r in %d milliseconds.", message.id, delay)
         await broker.nack(consumer, message)
-
-    @staticmethod
-    def compute_backoff(
-        message_age: int,
-        *,
-        backoff_factor: int = 5,
-    ) -> int:
-        return message_age * backoff_factor

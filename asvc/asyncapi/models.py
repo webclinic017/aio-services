@@ -1,6 +1,14 @@
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel as _BaseModel
+from pydantic import Field
+
+from asvc.models import CloudEvent
+
+
+class BaseModel(_BaseModel):
+    class Config:
+        allow_population_by_field_name = True
 
 
 class Info(BaseModel):
@@ -8,10 +16,22 @@ class Info(BaseModel):
     version: str
 
 
+class PublishInfo(BaseModel):
+    topic: str
+    event_type: type[CloudEvent]
+    kwargs: dict[str, Any]
+
+
+class PayloadRef(BaseModel):
+    ref: str = Field(..., alias="$ref")
+
+
 class Message(BaseModel):
+    message_id: str = Field(..., alias="messageId")
+    payload: PayloadRef
+    content_type: str = Field(..., alias="contentType")
     description: Optional[str] = None
     tags: list[str] = []
-    payload: dict[str, Any]
 
 
 class Operation(BaseModel):
@@ -41,9 +61,14 @@ class Tag(BaseModel):
     external_docs: Optional[str] = Field(None, alias="externalDocs")
 
 
+class Components(BaseModel):
+    schemas: dict[str, Any]
+
+
 class AsyncAPI(BaseModel):
     asyncapi: str = "2.5.0"
     info: Info
     servers: dict[str, Server] = {}
     channels: dict[str, ChannelItem] = {}
     default_content_type: str = Field("application/json", alias="defaultContentType")
+    components: Components

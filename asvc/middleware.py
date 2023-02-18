@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING, Any
 from .logger import LoggerMixin
 
 if TYPE_CHECKING:
-    from .broker import Broker
-    from .consumer import Consumer
-    from .models import CloudEvent
+    from asvc import Broker, CloudEvent, Consumer, RawMessage, Service
 
 
 class Middleware(LoggerMixin):
+    """Base class for middlewares"""
+
     async def before_broker_connect(self, broker: Broker) -> None:
         """Called before broker connects"""
 
@@ -23,17 +23,33 @@ class Middleware(LoggerMixin):
     async def after_broker_disconnect(self, broker: Broker) -> None:
         """Called after broker disconnects"""
 
-    async def before_consumer_start(self, broker: Broker, consumer: Consumer) -> None:
+    async def before_service_start(self, broker: Broker, service: Service):
+        """Called before service starts"""
+
+    async def after_service_start(self, broker: Broker, service: Service):
+        """Called after service starts"""
+
+    async def before_service_stop(self, broker: Broker, service: Service):
+        """Called before service stops"""
+
+    async def after_service_stop(self, broker: Broker, service: Service):
+        """Called after service stops"""
+
+    async def before_consumer_start(
+        self, broker: Broker, service: Service, consumer: Consumer
+    ) -> None:
         """Called before consumer is started"""
 
-    async def after_consumer_start(self, broker: Broker, consumer: Consumer) -> None:
+    async def after_consumer_start(
+        self, broker: Broker, service: Service, consumer: Consumer
+    ) -> None:
         """Called after consumer is started"""
 
     async def before_ack(
         self,
         broker: Broker,
         consumer: Consumer,
-        message: CloudEvent,
+        message: RawMessage,
     ) -> None:
         """Called before message is acknowledged"""
 
@@ -41,17 +57,17 @@ class Middleware(LoggerMixin):
         self,
         broker: Broker,
         consumer: Consumer,
-        message: CloudEvent,
+        message: RawMessage,
     ) -> None:
         """Called after message is acknowledged"""
 
     async def before_nack(
-        self, broker: Broker, consumer: Consumer, message: CloudEvent
+        self, broker: Broker, consumer: Consumer, message: RawMessage
     ) -> None:
         """Called before message is rejected"""
 
     async def after_nack(
-        self, broker: Broker, consumer: Consumer, message: CloudEvent
+        self, broker: Broker, consumer: Consumer, message: RawMessage
     ) -> None:
         """Called after message is rejected"""
 

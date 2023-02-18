@@ -1,14 +1,16 @@
 from __future__ import annotations
 
-import inspect
-from typing import TYPE_CHECKING, Any
+import asyncio
+from typing import TYPE_CHECKING, Any, Callable
 
-from .consumer import Consumer, GenericConsumer
+from .consumer import Consumer, ConsumerGroup
 from .logger import LoggerMixin
-from .models import CloudEvent, PublishInfo
+from .models import CloudEvent
+from .utils import generate_instance_id
 
 if TYPE_CHECKING:
-    from .types import MessageHandlerT, TagMeta
+    from .broker import Broker
+    from .types import TagMeta
 
 
 class Service(LoggerMixin):
@@ -16,68 +18,72 @@ class Service(LoggerMixin):
 
     def __init__(
         self,
+        broker: Broker,
         name: str,
         title: str | None = None,
         version: str | None = None,
         description: str = "",
         tags_metadata: list[TagMeta] = None,
         consumers: dict[str, Consumer] = None,
+        instance_id_generator: Callable[[], str] = generate_instance_id,
     ):
+        self.broker = broker
         self.name = name
         self.title = title or name.title()
-        self.version = version or "1.0"
-        self.qualname = f"{self.name}:{self.version}" if version else self.name
+        self.version = version
+        self.qualname = f"{self.name}.{self.version}" if version else self.name
         self.description = description
         self.tags_metadata = tags_metadata or []
         self.consumers = consumers or {}
-        self._publish_registry: dict[str, PublishInfo] = {}
+        self.id = instance_id_generator()
+        self.consumer_group = ConsumerGroup(prefix=self.qualname)
 
     def __hash__(self):
         return hash((self.name, self.version))
 
-    def __eq__(self, other):
-        if not isinstance(other, Service):
-            return NotImplemented
-        return self.name == other.name and self.version == other.version
-
     def subscribe(
         self,
         topic: str,
-        **extra: Any,
+        **options: Any,
     ):
-        def wrapper(func_or_cls: MessageHandlerT) -> MessageHandlerT:
-            if callable(func_or_cls):
-                consumer = Consumer(
-                    service_name=self.qualname,
-                    topic=topic,
-                    fn=func_or_cls,  # type: ignore
-                    **extra,
-                )
-            elif inspect.isclass(func_or_cls) and issubclass(
-                func_or_cls, GenericConsumer
-            ):
-                consumer = func_or_cls(
-                    service_name=self.qualname,
-                    topic=topic,
-                    **extra,
-                )
-            else:
-                raise TypeError("Expected function or generic consumer")
+        return self.consumer_group.subscribe(topic, **options)
 
-            self.consumers[consumer.name] = consumer
-            return func_or_cls
+    def add_consumer_group(self, consumer_group: ConsumerGroup) -> None:
+        self.consumer_group.add_consumer_group(consumer_group)
 
-        return wrapper
+    async def publish(
+        self,
+        topic: str,
+        data: Any | None = None,
+        type_: type[CloudEvent] | str = "CloudEvent",
+        **kwargs,
+    ):
+        kwargs.setdefault("source", self.qualname)
+        return await self.broker.publish(topic, data, type_, **kwargs)
 
-    def publishes(self, topic: str, **kwargs):
-        def wrapper(cls: type[CloudEvent]) -> type[CloudEvent]:
-            self._publish_registry[cls.__name__] = PublishInfo(
-                topic=topic, event_type=cls, kwargs=kwargs
-            )
-            return cls
+    async def publish_event(self, message: CloudEvent, **kwargs):
+        if not message.source:
+            message.source = self.qualname
+        return await self.broker.publish_event(message, **kwargs)
 
-        return wrapper
+    async def start(self):
+        await self.broker.dispatch_before("service_start", self)
+        await self.broker.connect()
+        for consumer in self.consumers.values():
+            asyncio.create_task(self.broker.start_consumer(self, consumer))
+        await self.broker.dispatch_after("service_start", self)
 
-    @property
-    def publish_registry(self) -> dict[str, PublishInfo]:
-        return self._publish_registry
+    async def stop(self, *args, **kwargs):
+        await self.broker.dispatch_before("service_stop", self)
+        await self.broker.disconnect()
+        await self.broker.dispatch_after("service_stop", self)
+
+    def run(self, *args, **kwargs):
+        from .runner import ServiceRunner
+
+        runner = ServiceRunner(self)
+        runner.run(*args, **kwargs)
+
+    @classmethod
+    def from_settings(cls, settings, **kwargs):
+        return cls(**settings.dict(), **kwargs)

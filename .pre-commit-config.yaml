@@ -47,3 +47,14 @@ repos:
     hooks:
     - id: bandit
       args: ["--skip", "B101", "-r", "./asvc"]
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        language: system
+        types: [ python3 ]
+        pass_filenames: false
+        always_run: true
+        entry: mypy
+        args: [ "./asvc" ]

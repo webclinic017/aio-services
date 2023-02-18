@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
-from uuid import UUID
 
 from nats.js.errors import KeyNotFoundError
 from nats.js.kv import KeyValue
@@ -45,7 +44,7 @@ class NatsJetStreamResultMiddleware(Middleware):
             return None
 
     async def get_message_result(
-        self, consumer_name: str, message_id: UUID
+        self, consumer_name: str, message_id: str
     ) -> Any | None:
         # TODO: timeout
         return await self.get(f"{consumer_name}:{message_id}")
@@ -64,6 +63,6 @@ class NatsJetStreamResultMiddleware(Middleware):
         exc: Exception | None = None,
     ):
         """Store message result in JetStream K/V Store"""
-        if exc is None and "store_results" in consumer.options:
+        if exc is None and consumer.options.get("store_results"):
             data = self.encoder.encode(result)
             await self.kv.put(f"{consumer.name}:{message.id}", data)

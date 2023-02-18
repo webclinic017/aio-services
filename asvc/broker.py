@@ -1,25 +1,33 @@
 from __future__ import annotations
 
 import asyncio
+import functools
 from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any, Awaitable, Callable, Generic
 
 import async_timeout
 from pydantic import ValidationError
 
-from .exceptions import DecodeError, Reject, Skip
+from .exceptions import DecodeError, Reject, Retry, Skip
 from .logger import LoggerMixin
 from .middleware import Middleware
 from .models import CloudEvent
+from .settings import BrokerSettings, Settings
 from .types import Encoder, RawMessage
 
 if TYPE_CHECKING:
-    from .consumer import Consumer
+    from asvc import Consumer, Service
 
 
 class AbstractBroker(ABC, Generic[RawMessage]):
     @abstractmethod
     def parse_incoming_message(self, message: RawMessage) -> Any:
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def is_connected(self) -> bool:
+        """Return broker connection status"""
         raise NotImplementedError
 
     @abstractmethod
@@ -35,44 +43,41 @@ class AbstractBroker(ABC, Generic[RawMessage]):
         raise NotImplementedError
 
     @abstractmethod
-    async def _start_consumer(self, consumer: Consumer) -> None:
+    async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
         raise NotImplementedError
 
-    @property
-    @abstractmethod
-    def is_connected(self) -> bool:
-        """Return broker connection status"""
-        raise NotImplementedError
-
-    async def _ack(self, message: CloudEvent) -> None:
+    async def _ack(self, message: RawMessage) -> None:
         """Empty default implementation for backends that do not support explicit ack"""
 
-    async def _nack(self, message: CloudEvent, delay: int | None = None) -> None:
+    async def _nack(self, message: RawMessage, delay: int | None = None) -> None:
         """Same as for ._ack()"""
 
 
 class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
+    """Base broker class
+    :param description: Broker (Server) Description
+    :param encoder: Encoder (Serializer) class
+    :param middlewares: Optional list of middlewares
+    """
+
     protocol: str
+    Settings = BrokerSettings
 
     def __init__(
         self,
         *,
-        name: str | None = None,
         description: str | None = None,
         encoder: Encoder | None = None,
         middlewares: list[Middleware] | None = None,
-        **options,
     ) -> None:
-        """Base broker class"""
+
         if encoder is None:
             from .encoders import get_default_encoder
 
             encoder = get_default_encoder()
-        self.name = name or str(self)
         self.description = description or type(self).__doc__
         self.encoder = encoder
         self.middlewares: list[Middleware] = middlewares or []
-        self.options = options
         self._lock = asyncio.Lock()
         self._stopped = True
 
@@ -80,7 +85,7 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         return type(self).__name__
 
     def get_handler(
-        self, consumer: Consumer
+        self, service: Service, consumer: Consumer
     ) -> Callable[[RawMessage], Awaitable[Any | None]]:
         async def handler(raw_message: RawMessage) -> None:
             exc: Exception | None = None
@@ -94,14 +99,17 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
                 self.logger.exception(
                     "Parsing error Decode/Validation error", exc_info=e
                 )
+                await self._ack(raw_message)
                 return
 
             try:
-                await self.dispatch_before("process_message", consumer, message)
+                await self.dispatch_before(
+                    "process_message", service, consumer, message
+                )
             except Skip:
                 self.logger.info(f"Skipped message {message.id}")
-                await self.dispatch_after("skip_message", message)
-                await self.ack(consumer, message)
+                await self.dispatch_after("skip_message", service, consumer, message)
+                await self.ack(consumer, raw_message)
                 return
             try:
                 async with async_timeout.timeout(consumer.timeout):
@@ -116,27 +124,28 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
                             topic=consumer.forward_response.topic,
                             data=result,
                             trace_id=message.trace_id,
-                            source=consumer.name,
+                            source=service.qualname,
                         )
                     )
             # TODO: asyncio.CanceledError handling (?)
-            except Reject as e:
-                exc = e
-                self.logger.exception(f"Message {message.id} rejected", exc_info=e)
             except Exception as e:
                 exc = e
             finally:
+                if isinstance(exc, Reject):
+                    self.logger.warning(
+                        f"Message {message.id} rejected due to {exc.reason}"
+                    )
                 await self.dispatch_after(
-                    "process_message", consumer, message, result, exc
+                    "process_message", service, consumer, message, result, exc
                 )
-                if exc and isinstance(exc, Reject):
-                    await self.nack(consumer, message)
+                if exc and isinstance(exc, Retry):
+                    await self.nack(consumer, message, exc.delay)
                 else:
                     await self.ack(consumer, message)
 
         return handler
 
-    async def ack(self, consumer: Consumer, message: CloudEvent) -> None:
+    async def ack(self, consumer: Consumer, message: RawMessage) -> None:
         await self.dispatch_before("ack", consumer, message)
         await self._ack(message)
         await self.dispatch_after("ack", consumer, message)
@@ -144,7 +153,7 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
     async def nack(
         self,
         consumer: Consumer,
-        message: CloudEvent,
+        message: RawMessage,
         delay: int | None = None,
     ) -> None:
         await self.dispatch_after(
@@ -171,11 +180,16 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         async with self._lock:
             if not self._stopped:
                 await self.dispatch_before("broker_disconnect")
-                self._stopped = True
                 await self._disconnect()
+                self._stopped = True
                 await self.dispatch_after("broker_disconnect")
 
-    async def publish_event(self, message: CloudEvent, **kwargs):
+    async def publish_event(self, message: CloudEvent, **kwargs: Any) -> None:
+        """
+        :param message: Cloud event object to send
+        :param kwargs: Additional params passed to broker._publish
+        :rtype: None
+        """
         await self.dispatch_before("publish", message)
         await self._publish(message, **kwargs)
         await self.dispatch_after("publish", message)
@@ -186,27 +200,34 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
         data: Any | None = None,
         type_: type[CloudEvent] | str = "CloudEvent",
         source: str = "",
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
-        """Publish message to broker"""
+        """Publish message to broker
+        :param topic: Topic to publish data
+        :param data: Message content
+        :param type_: Event type, name or class
+        :param source: message sender (service/app name)
+        :param kwargs: additional params passed to underlying broker implementation, such as headers
+        :rtype: None
+        """
+
         if isinstance(type_, str):
-            cls = CloudEvent
-            kwargs["type"] = type_
+            cls = functools.partial(CloudEvent, type=type_)
         else:
-            cls = type_
+            cls = type_  # type: ignore
+
         message: CloudEvent = cls(
             content_type=self.encoder.CONTENT_TYPE,
             topic=topic,
             data=data,
             source=source,
-            **kwargs,
         )
-        await self.publish_event(message)
+        await self.publish_event(message, **kwargs)
 
-    async def start_consumer(self, consumer: Consumer):
-        await self.dispatch_before("consumer_start", consumer)
-        await self._start_consumer(consumer)
-        await self.dispatch_after("consumer_start", consumer)
+    async def start_consumer(self, service: Service, consumer: Consumer):
+        await self.dispatch_before("consumer_start", service, consumer)
+        await self._start_consumer(service, consumer)
+        await self.dispatch_after("consumer_start", service, consumer)
 
     def add_middleware(self, middleware: Middleware) -> None:
         if not isinstance(middleware, Middleware):
@@ -227,3 +248,18 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
 
     async def dispatch_after(self, event: str, *args, **kwargs) -> None:
         await self._dispatch(f"after_{event}", *args, **kwargs)
+
+    @classmethod
+    def from_env(
+        cls,
+        description: str | None = None,
+        middlewares: list[Middleware] | None = None,
+        **kwargs,
+    ) -> Broker:
+        settings = Settings()
+        broker_cls: type[Broker] = settings.get_broker_class()
+        broker_settings = broker_cls.Settings(
+            description=description, middlewares=middlewares, **kwargs
+        )
+        instance = broker_cls(**broker_settings.dict())
+        return instance

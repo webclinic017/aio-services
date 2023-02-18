@@ -9,18 +9,19 @@ from asvc.broker import Broker
 from asvc.middleware import Middleware
 
 if TYPE_CHECKING:
-    from asvc.consumer import Consumer
-    from asvc.models import CloudEvent
+    from asvc import CloudEvent, Consumer, Service
     from asvc.types import Encoder
 
 
 @dataclass
 class Message:
     data: bytes
-    queue: asyncio.Queue | None = None
+    queue: asyncio.Queue
 
 
 class StubBroker(Broker[Message]):
+    """This is in-memory implementation of a broker class, mainly designed for testing."""
+
     protocol = "in-memory"
 
     def __init__(
@@ -40,9 +41,9 @@ class StubBroker(Broker[Message]):
     async def _disconnect(self) -> None:
         self._stopped = True
 
-    async def _start_consumer(self, consumer: Consumer):
+    async def _start_consumer(self, service: Service, consumer: Consumer):
         queue = self.topics[consumer.topic]
-        handler = self.get_handler(consumer)
+        handler = self.get_handler(service, consumer)
         while not self._stopped:
             message = await queue.get()
             await handler(message)
@@ -56,14 +57,14 @@ class StubBroker(Broker[Message]):
         msg = Message(data=data, queue=queue)
         await queue.put(msg)
 
-    async def _ack(self, message: CloudEvent) -> None:
-        message.raw.queue.task_done()
+    async def _ack(self, message: Message) -> None:
+        message.queue.task_done()
 
-    async def _nack(self, message: CloudEvent, delay: int | None = None) -> None:
+    async def _nack(self, message: Message, delay: int | None = None) -> None:
 
         if delay:
             await asyncio.sleep(delay)
-        await message.raw.queue.put(message.raw)
+        await message.queue.put(message)
 
     def is_connected(self) -> bool:
         return True

@@ -22,7 +22,7 @@ class HealthCheckMiddleware(Middleware):
         file_mode: bool = False,
         checkers: Sequence[Callable[..., Awaitable[bool]]] | None = None,
     ):
-        self.interval = interval  # 30s by default
+        self.interval = interval
         self.file_mode = file_mode
         self._checkers = checkers
         self._broker: Broker | None = None
