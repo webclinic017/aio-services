@@ -2,8 +2,6 @@
 
 ## Version 0.1.0
 
-## Description
-
 *Event driven microservice framework for python*
 
 
