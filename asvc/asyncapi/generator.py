@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from itertools import chain
-from typing import TYPE_CHECKING, Literal
 
 from pydantic.schema import schema as all_schemas
+from typing_extensions import Literal
 
 from asvc.asyncapi.models import (
     AsyncAPI,
@@ -17,10 +17,8 @@ from asvc.asyncapi.models import (
     PayloadRef,
 )
 
+from ..service import Service
 from .registry import PUBLISH_REGISTRY
-
-if TYPE_CHECKING:
-    from asvc import Service
 
 PREFIX = "#/components/schemas/"
 

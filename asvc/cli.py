@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import logging
-from typing import Literal
 
 import click
+from typing_extensions import Literal
 
 from .runner import ServiceRunner
 from .service import Service
