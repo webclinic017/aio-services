@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "asvc"
-version = "0.1.0"
+version = "0.1.1"
 description = "Event driven microservice framework for python"
 readme = "README.md"
 authors = ["Radzim Kowalow <radzim_ko@wp.pl>"]
@@ -73,6 +73,7 @@ mkdocs-autorefs = "^0.4.1"
 mkdocs-gen-files = "^0.4.0"
 mkdocstrings-python = "^0.8.2"
 watchfiles = "^0.18.1"
+python-semantic-release = "^7.33.2"
 
 [tool.pytest.ini_options]
 addopts = "--cov=./asvc"
