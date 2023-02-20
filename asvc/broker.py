@@ -124,7 +124,7 @@ class Broker(AbstractBroker[RawMessage], LoggerMixin, ABC):
                             topic=consumer.forward_response.topic,
                             data=result,
                             trace_id=message.trace_id,
-                            source=service.qualname,
+                            source=service.name,
                         )
                     )
             # TODO: asyncio.CanceledError handling (?)

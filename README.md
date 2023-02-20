@@ -10,14 +10,22 @@
 ![PyPi](https://img.shields.io/pypi/v/asvc)
 [![security: bandit](https://img.shields.io/badge/security-bandit-yellow.svg)](https://github.com/PyCQA/bandit)
 
-*Event driven microservice framework for python*
+*Cloud native, event driven microservice framework for python*
+
+*Note: This package is under active development and is not ready for production use*
 
 ---
+Version: 0.1.1
 
+Docs: https://rarhaeu.github.io/aio-services/
+
+Repository: https://github.com/RaRhAeu/aio-services
+
+---
 ## About
 
-The package utilizes `pydantic` as the only required dependency.
-For message format Cloud Events format is used.
+The package utilizes `pydantic` and `async_timeout` as the only required dependencies.
+For messages [Cloud Events](https://cloudevents.io/) format is used.
 Service can be run as standalone processes, or included into starlette (e.g. FastAPI) applications.
 
 ## Installation
@@ -34,15 +42,13 @@ pip install asvc
 - Kafka
 - Rabbitmq
 - Google Cloud PubSub
+- And more comming
 
 ## Optional Dependencies
   - `cli` - `click` and `aiorun`
-  - `uvloop`
   - broker of choice: `nats`, `kafka`, `rabbitmq`, `redis`, `pubsub`
-  - custom serializer `msgpack`, `orjson`
+  - custom message serializers: `msgpack`, `orjson`
   - `prometheus` - Metric exposure via `PrometheusMiddleware`
-  - `opentelemetry`
-
 
 ## Motivation
 
@@ -61,7 +67,7 @@ do not support `asyncio`. This is why this project was born.
 
 ```python
 import asyncio
-from asvc import Service, CloudEvent, ServiceRunner, Middleware
+from asvc import Service, CloudEvent, Middleware
 from asvc.backends.nats.broker import JetStreamBroker
 
 
@@ -73,21 +79,18 @@ class SendMessageMiddleware(Middleware):
             await broker.publish("test.topic", data={"counter": i})
         print("Published event(s)")
 
+broker = JetStreamBroker(url="nats://localhost:4222")
+broker.add_middleware(SendMessageMiddleware())
 
-service = Service(name="example-service")
+service = Service(name="example-service", broker=broker)
 
 @service.subscribe("test.topic")
 async def example_run(message: CloudEvent):
     print(f"Received Message {message.id} with data: {message.data}")
 
-        
-global_broker = JetStreamBroker(url="nats://localhost:4222")
-global_broker.add_middleware(SendMessageMiddleware())
-
-runner = ServiceRunner(services=[service], broker=global_broker)
 
 if __name__ == "__main__":
-    runner.run()
+    service.run()
 
 ```
 

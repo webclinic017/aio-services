@@ -15,9 +15,9 @@ if TYPE_CHECKING:
 
 class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
     """
-    RabbitMQ broker implementation, based on aio_pika library.
+    RabbitMQ broker implementation, based on `aio_pika` library.
     :param url: rabbitmq connection string
-    :param default_prefetch_count: default number of messager to prefetch (per queue)
+    :param default_prefetch_count: default number of messages to prefetch (per queue)
     :param queue_options: additional queue options
     :param exchange_name: global exchange name
     :param connection_options: additional connection options passed to aio_pika.connect_robust
@@ -72,7 +72,7 @@ class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
 
     async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
         """
-        TODO: refactor rabbitmq to use 1 queue per service and iternal handlers [topic:handler] dict
+        TODO: refactor rabbitmq to use 1 queue per service and internal handlers [routing_key:consumer_handler] dict
         to route the messages to consumers
         :param service:
         :param consumer:
@@ -89,7 +89,7 @@ class RabbitmqBroker(Broker[aio_pika.abc.AbstractIncomingMessage]):
         )
         is_durable = not consumer.dynamic
         options.setdefault("durable", is_durable)
-        queue_name = f"{service.name}.{consumer.name}"
+        queue_name = f"{service.name}:{consumer.name}"
         queue = await channel.declare_queue(name=queue_name, **options)
         await queue.bind(self._exchange, routing_key=consumer.topic)
         handler = self.get_handler(service, consumer)

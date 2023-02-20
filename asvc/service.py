@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from typing import TYPE_CHECKING, Any, Callable
 
-from .consumer import ConsumerGroup
+from .consumer import ConsumerGroup, FnConsumer, ForwardResponse
 from .logger import LoggerMixin
 from .models import CloudEvent
 from .utils import generate_instance_id
@@ -21,7 +21,7 @@ class Service(LoggerMixin):
         broker: Broker,
         name: str,
         title: str | None = None,
-        version: str | None = None,
+        version: str = "1.0",
         description: str = "",
         tags_metadata: list[TagMeta] = None,
         instance_id_generator: Callable[[], str] = generate_instance_id,
@@ -29,22 +29,32 @@ class Service(LoggerMixin):
         self.broker = broker
         self.name = name
         self.title = title or name.title()
-        self.version = version or "1.0"
-        self.qualname = f"{self.name}.{self.version}" if version else self.name
+        self.version = version
         self.description = description
         self.tags_metadata = tags_metadata or []
         self.id = instance_id_generator()
-        self.consumer_group = ConsumerGroup(prefix=self.qualname)
-
-    def __hash__(self):
-        return hash((self.name, self.version))
+        self.consumer_group = ConsumerGroup()
 
     def subscribe(
         self,
         topic: str,
-        **options: Any,
+        *,
+        name: str | None = None,
+        timeout: int = 120,
+        dynamic: bool = False,
+        forward_response: ForwardResponse | None = None,
+        cls=FnConsumer,
+        **options,
     ):
-        return self.consumer_group.subscribe(topic, **options)
+        return self.consumer_group.subscribe(
+            topic=topic,
+            name=name,
+            timeout=timeout,
+            dynamic=dynamic,
+            forward_response=forward_response,
+            cls=cls,
+            **options,
+        )
 
     def add_consumer_group(self, consumer_group: ConsumerGroup) -> None:
         self.consumer_group.add_consumer_group(consumer_group)
@@ -56,7 +66,7 @@ class Service(LoggerMixin):
         type_: type[CloudEvent] | str = "CloudEvent",
         **kwargs,
     ):
-        kwargs.setdefault("source", self.qualname)
+        kwargs.setdefault("source", self.name)
         return await self.broker.publish(topic, data, type_, **kwargs)
 
     @property
@@ -65,7 +75,7 @@ class Service(LoggerMixin):
 
     async def publish_event(self, message: CloudEvent, **kwargs):
         if not message.source:
-            message.source = self.qualname
+            message.source = self.name
         return await self.broker.publish_event(message, **kwargs)
 
     async def start(self):
@@ -83,7 +93,7 @@ class Service(LoggerMixin):
     def run(self, *args, **kwargs):
         from .runner import ServiceRunner
 
-        runner = ServiceRunner(self)
+        runner = ServiceRunner([self])
         runner.run(*args, **kwargs)
 
     @classmethod
