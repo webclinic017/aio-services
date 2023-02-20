@@ -7,7 +7,7 @@
     all messages are load balanced between all instances by default
 - Resilient - at least once delivery for all messages by default 
 - Customizable & pluggable encoders (json, msgpack, custom)
-- Multiple broker support (Nats, Kafka, Rabbitmq, Redis, PubSub, and more comming)
+- Multiple broker support (Nats, Kafka, Rabbitmq, Redis, PubSub, and more coming)
 - Easily extensible via Middlewares and Plugins
 - Cloud Events standard as base message structure (no more python specific `*args` and `**kwargs` in messages)
 - AsyncAPI documentation generation from code

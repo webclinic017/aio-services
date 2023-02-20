@@ -96,7 +96,8 @@ version_variable = [
 ]
 version_toml = 'pyproject.toml:tool.poetry.version'
 version_pattern = [
-    'docs/index.md:Version (\d+\.\d+\.\d+)'
+    'docs/index.md:Version (\d+\.\d+\.\d+)',
+    'README.md:Version: (\d+\.\d+\.\d+)'
 ]
 upload_to_repository = false
 major_on_zero = true

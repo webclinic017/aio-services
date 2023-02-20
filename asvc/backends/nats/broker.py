@@ -8,7 +8,7 @@ from nats.aio.msg import Msg as NatsMsg
 from nats.js import JetStreamContext
 
 from asvc.broker import Broker
-from asvc.exceptions import BrokerError
+from asvc.exceptions import BrokerError, PublishError
 from asvc.utils.functools import retry_async
 
 from .settings import JetStreamSettings, NatsSettings
@@ -52,10 +52,9 @@ class NatsBroker(Broker[NatsMsg]):
         return self.encoder.decode(message.data)
 
     async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
-        queue = f"{service.name}:{consumer.name}"
         await self.nc.subscribe(
             subject=consumer.topic,
-            queue=queue,
+            queue=consumer.name,
             cb=self.get_handler(service, consumer),
         )
 
@@ -67,6 +66,7 @@ class NatsBroker(Broker[NatsMsg]):
     async def flush(self):
         await self.nc.flush()
 
+    @retry_async(max_retries=3)
     async def _connect(self) -> None:
         self._nc = await nats.connect(self.url, **self.connection_options)
 
@@ -131,13 +131,16 @@ class JetStreamBroker(NatsBroker):
         data = self.encoder.encode(message)
         headers = headers or {}
         headers.setdefault("Content-Type", self.encoder.CONTENT_TYPE)
-        await self.js.publish(
-            subject=message.topic,
-            payload=data,
-            timeout=timeout,
-            stream=stream,
-            headers=headers,
-        )
+        try:
+            await self.js.publish(
+                subject=message.topic,
+                payload=data,
+                timeout=timeout,
+                stream=stream,
+                headers=headers,
+            )
+        except Exception as e:
+            raise PublishError from e
 
     async def _start_consumer(self, service: Service, consumer: Consumer) -> None:
         durable = f"{service.name}:{consumer.name}"

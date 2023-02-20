@@ -21,6 +21,12 @@ if TYPE_CHECKING:
 
 
 class PubSubBroker(Broker[SubscriberMessage]):
+    """
+    Google Cloud Pub/Sub broker implementation
+    :param service_file: path to the service account (json) file
+    :param kwargs: Broker base class parameters
+    """
+
     Settings = PubSubSettings
 
     def __init__(
@@ -29,6 +35,7 @@ class PubSubBroker(Broker[SubscriberMessage]):
         service_file: str,
         **kwargs: Any,
     ) -> None:
+
         super().__init__(**kwargs)
         self.service_file = service_file
         self._client = None

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Sequence
 
 import aiorun
 
@@ -6,12 +7,15 @@ from .service import Service
 
 
 class ServiceRunner:
-    """Utility class for running multiple services in one process"""
+    """
+    Service container for running multiple service instances in one process.
+    :param services: Sequence of services to run
+    """
 
-    def __init__(self, *services: Service):
+    def __init__(self, services: Sequence[Service]) -> None:
         self.services = services
 
-    def run(self, use_uvloop: bool = False, **kwargs):
+    def run(self, use_uvloop: bool = False, **kwargs) -> None:
         aiorun.run(
             self._run(), shutdown_callback=self._stop, use_uvloop=use_uvloop, **kwargs
         )

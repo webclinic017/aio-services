@@ -2,13 +2,14 @@ import pytest
 
 from asvc import CloudEvent
 from asvc.encoders.json import JsonEncoder
+from asvc.encoders.msgpack import MsgPackEncoder
 from asvc.encoders.orjson import OrjsonEncoder
 from asvc.encoders.pickle import PickleEncoder
 
-# from asvc.encoders.msgpack import MsgPackEncoder
 
-
-@pytest.mark.parametrize("encoder", (JsonEncoder, OrjsonEncoder, PickleEncoder))
+@pytest.mark.parametrize(
+    "encoder", (JsonEncoder, OrjsonEncoder, MsgPackEncoder, PickleEncoder)
+)
 @pytest.mark.parametrize("data", (1, "2", 3.0, [None], {"key": "value", "1": 2}))
 def test_encoders_simple_data(encoder, data):
     encoded = encoder.encode(data)

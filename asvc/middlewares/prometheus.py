@@ -96,7 +96,7 @@ class PrometheusMiddleware(Middleware):
         )
 
     async def before_service_start(self, broker: Broker, service: Service):
-        self.service_name = service.qualname
+        self.service_name = service.name
 
     async def before_process_message(
         self, broker: Broker, consumer: Consumer, message: CloudEvent

@@ -24,10 +24,15 @@ repo_url: https://github.com/RaRhAeu/aio-services
 edit_uri: ''
 nav:
   - "Aio Services": index.md
+  - "Installation": installation.md
   - "Features": features.md
   - "Usage": usage.md
+  - "Service": service.md
   - "Backends": backends.md
-  - "Reference": reference.md
+  - "Consumers": consumers.md
+  - "Middlewares": middlewares.md
+  - "HTTP": http.md
+  - "AsyncAPI": async_api.md
 
 markdown_extensions:
   - pymdownx.highlight:

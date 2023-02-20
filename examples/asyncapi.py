@@ -1,9 +1,9 @@
 import asyncio
+from pydantic import BaseModel
 from asvc import Service, CloudEvent
 from asvc import Middleware
 from asvc.asyncapi.registry import publishes
 from asvc.backends.nats.broker import JetStreamBroker
-from asvc.models import BaseModel
 
 broker = JetStreamBroker(url="nats://localhost:4222")
 
@@ -17,7 +17,7 @@ class MyData(BaseModel):
     info: str
 
 
-@publishes("test.topic")
+@publishes("test.topic.{sub}")
 class MyEvent(CloudEvent):
     """Some custom event"""
 
