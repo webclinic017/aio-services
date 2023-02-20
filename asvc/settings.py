@@ -1,11 +1,10 @@
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseSettings, Field, validator
 
 from asvc.utils.imports import import_from_string
 
 from .middleware import Middleware
-from .types import Encoder
 
 
 class Settings(BaseSettings):
@@ -18,7 +17,7 @@ class Settings(BaseSettings):
 class BrokerSettings(BaseSettings):
     description: Optional[str] = None
     middlewares: Optional[List["Middleware"]] = None
-    encoder: Optional[Encoder] = Field(None, env="BROKER_ENCODER_CLASS")
+    encoder: Optional[Any] = Field(None, env="BROKER_ENCODER_CLASS")
 
     @validator("encoder", pre=True)
     def resolve_encoder(cls, v):
